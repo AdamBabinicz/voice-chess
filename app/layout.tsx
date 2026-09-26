@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pl_PL",
     alternateLocale: "en_US",
-    url: "https://chesstactics.audio",
+    url: "https://chesstactics-audio.netlify.app",
     images: [
       {
         url: "/web-app-manifest-512x512.png",
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
     description:
       "Voice-first chess training with an interactive AI audio coach.",
   },
-  metadataBase: new URL("https://chesstactics.audio"),
+  metadataBase: new URL("https://chesstactics-audio.netlify.app"),
   alternates: {
     languages: {
       pl: "/pl",
@@ -98,6 +98,7 @@ export default function RootLayout({
     "@type": ["WebApplication", "SoftwareApplication", "SportsApplication"],
     name: "ChessTactics Audio Coach",
     alternateName: "Głosowy Trener Szachowy",
+    url: "https://chesstactics-audio.netlify.app",
     description:
       "Play full chess games and train tactics using only your voice. Interactive AI audio coach for blindfold players, visually impaired, and masters alike.",
     applicationCategory: "GameApplication, EducationalApplication",
@@ -114,29 +115,14 @@ export default function RootLayout({
 
   return (
     <html lang="pl" suppressHydrationWarning>
-      <head>
-        {/* Bezpośrednie linki gwarantujące natychmiastowe wykrycie faviconów we wszystkich przeglądarkach */}
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="96x96"
-          href="/favicon-96x96.png"
-        />
-        <link rel="shortcut icon" href="/favicon.ico" />
-        <link
-          rel="apple-touch-icon"
-          sizes="180x180"
-          href="/apple-touch-icon.png"
-        />
-        <link rel="manifest" href="/site.webmanifest" />
-
+      <body
+        suppressHydrationWarning
+        className="antialiased min-h-screen bg-background text-foreground"
+      >
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-      </head>
-      <body className="antialiased min-h-screen bg-background text-foreground">
         {children}
       </body>
     </html>
