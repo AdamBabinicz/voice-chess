@@ -2,7 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://chesstactics.app";
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://chesstactics-audio.netlify.app";
   const currentDate = new Date();
 
   return [

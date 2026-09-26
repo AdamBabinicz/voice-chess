@@ -42,12 +42,20 @@ export function TacticsSection({
           {TACTICAL_PUZZLES.map((puzzle: TacticalPuzzle, i: number) => {
             const isActive = activePuzzle === i;
             return (
-              <button
+              <div
                 key={puzzle.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelectPuzzle(i)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectPuzzle(i);
+                  }
+                }}
+                aria-label={`${puzzle.title[lang]} - ${puzzle.difficultyLabel[lang]}`}
                 className={cn(
-                  "group relative flex flex-col justify-between rounded-2xl border p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md cursor-pointer",
+                  "group relative flex flex-col justify-between rounded-2xl border p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2d4e13]",
                   isActive
                     ? "border-[#2d4e13] bg-[#f0f6e4] ring-2 ring-[#2d4e13] dark:border-[#a8d655] dark:bg-[#202f23]"
                     : "border-[#d5e1d0] bg-white dark:border-[#334238] dark:bg-[#1d2820]",
@@ -85,7 +93,7 @@ export function TacticsSection({
                   <span>{isActive ? activeBadgeText : exploreText}</span>
                   <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-1" />
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

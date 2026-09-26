@@ -71,14 +71,14 @@ export function ChessBoardView({
                   )}
                 >
                   {piece && (
-                    <div
+                    <span
                       className={cn(
                         "flex h-full w-full items-center justify-center transition-all duration-150",
                         isHidden && "opacity-0 scale-75",
                       )}
                     >
                       <ChessPiece type={piece.type} color={piece.color} />
-                    </div>
+                    </span>
                   )}
                 </button>
               );

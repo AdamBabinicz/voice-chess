@@ -1,5 +1,5 @@
 # robots.txt dla ChessTactics (Audio Coach)
-# https://chesstactics.app
+# https://chesstactics-audio.netlify.app
 
 User-agent: *
 Allow: /
@@ -10,4 +10,4 @@ Disallow: /_next/
 Disallow: /pliki/
 
 # Mapa witryny
-Sitemap: https://chesstactics.app/sitemap.xml
+Sitemap: https://chesstactics-audio.netlify.app/sitemap.xml

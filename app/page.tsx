@@ -509,8 +509,8 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Karta szachownicy */}
-          <section
+          {/* Karta szachownicy - semantyczny div zamiast section usuwa ostrzeżenie W3C #33 */}
+          <div
             id="live-coach"
             className="rounded-[2rem] border border-[#dce5d8] bg-white p-4 shadow-[0_20px_60px_-20px_rgba(52,73,57,.2)] dark:border-[#2b3a30] dark:bg-[#18201b] sm:p-6"
           >
@@ -688,7 +688,7 @@ export default function Page() {
                 {t.blind}
               </button>
             </div>
-          </section>
+          </div>
         </section>
 
         {/* Pasek sterowania głosem */}
