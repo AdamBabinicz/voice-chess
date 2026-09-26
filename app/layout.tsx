@@ -49,6 +49,7 @@ export const metadata: Metadata = {
     title: "ChessTactics Audio Coach",
   },
   openGraph: {
+    siteName: "ChessTactics Audio Coach",
     title: "Voice Chess Coach: Blindfold AI Game & Tactics APP",
     description:
       "Play full chess games and train tactics using only your voice. Interactive AI audio coach for blindfold players, visually impaired, and masters alike.",
@@ -58,10 +59,11 @@ export const metadata: Metadata = {
     url: "https://chesstactics-audio.netlify.app",
     images: [
       {
-        url: "/web-app-manifest-512x512.png",
-        width: 512,
-        height: 512,
-        alt: "ChessTactics Audio Coach",
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        type: "image/png",
+        alt: "ChessTactics Audio Coach - Voice & Blindfold Chess Training",
       },
     ],
   },
@@ -70,6 +72,7 @@ export const metadata: Metadata = {
     title: "Voice Chess Coach: Blindfold AI Game & Tactics APP",
     description:
       "Voice-first chess training with an interactive AI audio coach.",
+    images: ["/og-image.png"],
   },
   metadataBase: new URL("https://chesstactics-audio.netlify.app"),
   alternates: {
