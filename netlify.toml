@@ -1,0 +1,26 @@
+[build]
+  command = "pnpm build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  PNPM_FLAGS = "--frozen-lockfile"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Nagłówki bezpieczeństwa i uprawnień dla aplikacji szachowo-głosowej
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Kluczowe dla Web Speech API (dostęp do mikrofonu wyłącznie dla domeny aplikacji):
+    Permissions-Policy = "microphone=(self), speaker-selection=(self)"
+
+# Cache dla statycznych zasobów
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

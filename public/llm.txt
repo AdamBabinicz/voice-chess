@@ -1,0 +1,13 @@
+# ChessTactics Audio Coach
+
+Voice-first chess training for complete games, tactical puzzles, blindfold practice, and accessible audio coaching.
+
+## Core features
+- Interactive chess board with move selection and algebraic move log
+- Web Speech API-ready audio coach experience
+- Blindfold mode, keyboard navigation, and screen-reader-friendly labels
+- English and Polish interface
+- Light and dark display themes
+
+## Product
+The main app is available at `/`. Legal routes are `/privacy-policy`, `/terms`, `/pl/polityka-prywatnosci`, and `/pl/regulamin`.

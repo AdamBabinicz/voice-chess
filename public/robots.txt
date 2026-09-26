@@ -1,0 +1,13 @@
+# robots.txt dla ChessTactics (Audio Coach)
+# https://chesstactics.app
+
+User-agent: *
+Allow: /
+
+# Blokada indeksowania zasobów technicznych i plików roboczych
+Disallow: /api/
+Disallow: /_next/
+Disallow: /pliki/
+
+# Mapa witryny
+Sitemap: https://chesstactics.app/sitemap.xml

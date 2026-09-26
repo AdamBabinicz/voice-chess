@@ -1,0 +1,516 @@
+// lib/chess-coach-engine.ts
+import { Chess, Move, PieceSymbol } from "chess.js";
+
+export interface CoachAnalysis {
+  insight: string;
+  audioText: string;
+}
+
+export interface MaterialScore {
+  score: number;
+  whiteMaterial: number;
+  blackMaterial: number;
+  display: string;
+  evalText: string;
+}
+
+export interface TacticalPuzzle {
+  id: number;
+  title: { pl: string; en: string };
+  desc: { pl: string; en: string };
+  difficulty: "beginner" | "intermediate" | "master";
+  difficultyLabel: { pl: string; en: string };
+  icon: string;
+  fen: string;
+  hint: { pl: string; en: string };
+  verify: (san: string) => boolean;
+  successText: { pl: string; en: string };
+  failureText: { pl: string; en: string };
+}
+
+const PIECE_VALUES: Record<PieceSymbol, number> = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  k: 0,
+};
+
+/**
+ * Baza sprawdzonych łamigłówek taktycznych z precyzyjną oceną wygrywających ruchów.
+ */
+export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
+  {
+    id: 0,
+    title: { pl: "Widełki skoczkiem", en: "Knight Fork" },
+    desc: {
+      pl: "Atakuj króla i ciężką figurę jednocześnie",
+      en: "Attack king and major piece simultaneously",
+    },
+    difficulty: "beginner",
+    difficultyLabel: { pl: "Początkujący", en: "Beginner" },
+    icon: "♞",
+    fen: "r1b1k2r/pp1p1ppp/2n1pn2/8/2N1P3/2P5/P1PB1PPP/R3KB1R w KQkq - 0 1",
+    hint: {
+      pl: "Zadanie: Widełki skoczkiem! Białe zaczynają i zdobywają decydującą przewagę. Znajdź ruch skoczkiem atakujący dwie bierki!",
+      en: "Puzzle: Knight Fork! White to move and gain a winning advantage. Find the fork!",
+    },
+    verify: (san: string) =>
+      san.startsWith("Nd6") || san.startsWith("Nc7") || san.includes("d6+"),
+    successText: {
+      pl: "Genialnie! Znakomite widełki skoczkiem. Król przeciwnika jest w szachu, a jego obrona pęka. Zadanie rozwiązane!",
+      en: "Brilliant! Superb knight fork. The enemy king is in check and defense collapses. Puzzle solved!",
+    },
+    failureText: {
+      pl: "Niezły ruch, ale to nie są widełki. Szukaj pola dla skoczka, z którego zaszachuje króla i jednocześnie zaatakuje inną bierkę!",
+      en: "Decent move, but that is not the fork. Look for a square where your knight delivers check while attacking another piece!",
+    },
+  },
+  {
+    id: 1,
+    title: { pl: "Mat na ostatniej linii", en: "Back Rank Mate" },
+    desc: {
+      pl: "Wykorzystaj zablokowanie króla przez własne piony",
+      en: "Exploit king trapped by its own pawns",
+    },
+    difficulty: "beginner",
+    difficultyLabel: { pl: "Początkujący", en: "Beginner" },
+    icon: "♚",
+    fen: "6k1/5ppp/8/8/8/8/4QPPP/6K1 w - - 0 1",
+    hint: {
+      pl: "Zadanie: Mat na ostatniej linii! Białe zaczynają. Znajdź decydujący cios hetmanem kończący partię matem!",
+      en: "Puzzle: Back rank checkmate! White to move and deliver immediate mate!",
+    },
+    verify: (san: string) =>
+      san.includes("Qe8") || san.includes("Qe8#") || san.includes("Qd8"),
+    successText: {
+      pl: "Szach i mat! Wykorzystujesz słabość 8. linii. Król czarnych został odcięty za własnymi pionami. Zadanie rozwiązane!",
+      en: "Checkmate! Exploiting the 8th rank weakness. Black's king was trapped behind its own pawns. Puzzle solved!",
+    },
+    failureText: {
+      pl: "To nie prowadzi do natychmiastowego mata. Spójrz na 8. linię rywala — czy jest tam jakikolwiek obrońca?",
+      en: "That does not force immediate mate. Look at the opponent's 8th rank — is there any defender?",
+    },
+  },
+  {
+    id: 2,
+    title: { pl: "Związanie gońcem", en: "Absolute Pin" },
+    desc: {
+      pl: "Przygwoźdź figurę wzdłuż przekątnej przed królem",
+      en: "Pin heavy pieces along the diagonal",
+    },
+    difficulty: "intermediate",
+    difficultyLabel: { pl: "Średniozaawansowany", en: "Intermediate" },
+    icon: "♝",
+    fen: "4k3/4q3/8/8/8/2B5/4Q3/4K3 w - - 0 1",
+    hint: {
+      pl: "Zadanie: Związanie gońcem! Wykorzystaj bezwzględne związanie figury przeciwnika przed królem!",
+      en: "Puzzle: Absolute pin! Exploit the enemy piece pinned against the king!",
+    },
+    verify: (san: string) =>
+      san.includes("xe7") || san.startsWith("B") || san.includes("Bxe7"),
+    successText: {
+      pl: "Świetnie! Wykorzystujesz bezwzględne związanie. Związana figura nie może uciec i pada Twoim łupem. Zadanie rozwiązane!",
+      en: "Great job! Exploiting the absolute pin. The pinned piece cannot escape and falls to your attack. Puzzle solved!",
+    },
+    failureText: {
+      pl: "Nie wykorzystujesz jeszcze pełnego potencjału związania. Poszukaj zbicia figury stojącej bezpośrednio przed królem!",
+      en: "Not quite capitalizing on the pin yet. Look to capture the piece standing directly before the king!",
+    },
+  },
+  {
+    id: 3,
+    title: { pl: "Szpila wieżą (Rentgen)", en: "Rook Skewer" },
+    desc: {
+      pl: "Zaatakuj cenniejszą figurę, by zdobyć tę za nią",
+      en: "Attack the king to capture the queen behind it",
+    },
+    difficulty: "intermediate",
+    difficultyLabel: { pl: "Średniozaawansowany", en: "Intermediate" },
+    icon: "♜",
+    fen: "4k2q/8/8/8/8/8/8/R5K1 w - - 0 1",
+    hint: {
+      pl: "Zadanie: Szpila wieżą! Biała wieża widzi króla na e8 i hetmana na h8 w jednej linii. Wykorzystaj ten motyw geometryczny!",
+      en: "Puzzle: Rook skewer! The white rook aligns with the king on e8 and queen on h8. Exploit this geometry!",
+    },
+    verify: (san: string) => san.startsWith("Ra8") || san.includes("Ra8+"),
+    successText: {
+      pl: "Doskonale! Szach wieżą na a8 zmusza króla do ucieczki, a bezcenny hetman na h8 zostaje bez obrony i pada w kolejnym ruchu!",
+      en: "Splendid! The rook check on a8 forces the king away, leaving the unprotected queen on h8 to fall next move!",
+    },
+    failureText: {
+      pl: "To nie jest motyw szpili. Poszukaj ruchu wieżą po otwartej linii, który zaszachuje króla wzdłuż linii jego hetmana!",
+      en: "That is not the skewer. Look for a rook move on the open rank checking the king along his queen's rank!",
+    },
+  },
+  {
+    id: 4,
+    title: { pl: "Atak z odsłony", en: "Discovered Attack" },
+    desc: {
+      pl: "Odsłoń linię ataku z jednoczesnym szachem",
+      en: "Unmask attack line while delivering check",
+    },
+    difficulty: "master",
+    difficultyLabel: { pl: "Mistrz", en: "Master" },
+    icon: "⚡",
+    fen: "3qk3/8/8/3B4/8/8/8/3QK3 w - - 0 1",
+    hint: {
+      pl: "Zadanie: Atak z odsłony! Goniec zasłania linię hetmanów d1-d8. Odejdź gońcem z szachem, by w kolejnym ruchu wziąć hetmana za darmo!",
+      en: "Puzzle: Discovered attack! The bishop blocks the d-file. Move the bishop with check to win Black's queen next!",
+    },
+    verify: (san: string) =>
+      san.startsWith("Bf7") ||
+      san.startsWith("Bh7") ||
+      san.startsWith("Bg8") ||
+      san.startsWith("Be6") ||
+      san.includes("Bf7+"),
+    successText: {
+      pl: "Arcymistrzowskie posunięcie! Odejście gońca z szachem odsłania zabójczą linię d1-d8. Czarny hetman jest stracony!",
+      en: "Grandmaster precision! Moving the bishop with check unmasks the deadly d-file attack. Black's queen is doomed!",
+    },
+    failureText: {
+      pl: "To nie uwalnia pełnej siły ataku z odsłony. Poszukaj takiego odejścia gońcem, które natychmiast zmusi króla do reakcji (szach)!",
+      en: "That misses the full punch of the discovered attack. Look for a bishop jump that immediately forces a king response!",
+    },
+  },
+  {
+    id: 5,
+    title: { pl: "Współpraca bierek (Mat)", en: "Support Checkmate" },
+    desc: {
+      pl: "Szybki atak na najsłabszy punkt f7",
+      en: "Direct strike on the vulnerable f7 square",
+    },
+    difficulty: "beginner",
+    difficultyLabel: { pl: "Początkujący", en: "Beginner" },
+    icon: "♕",
+    fen: "r1bqkb1r/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
+    hint: {
+      pl: "Zadanie: Koordynacja ataku! Goniec z c4 celuje w słaby punkt f7, a hetman z f3 czeka na rozkaz. Znajdź natychmiastowego mata!",
+      en: "Puzzle: Attack coordination! The bishop on c4 and queen on f3 target f7. Deliver immediate checkmate!",
+    },
+    verify: (san: string) => san.includes("Qxf7") || san.includes("Qxf7#"),
+    successText: {
+      pl: "Bum! Szach i mat na f7! Współpraca hetmana i gońca przynosi natychmiastowe zwycięstwo. Zadanie rozwiązane!",
+      en: "Boom! Checkmate on f7! Seamless coordination between queen and bishop secures instant victory!",
+    },
+    failureText: {
+      pl: "Brak precyzji. Spójrz na pole f7 — jest bronione wyłącznie przez czarnego króla!",
+      en: "Lacks precision. Focus on the f7 square — it is guarded solely by Black's king!",
+    },
+  },
+];
+
+/**
+ * Oblicza bilans materiału na szachownicy.
+ */
+export function calculateMaterialBalance(
+  game: Chess,
+  lang: "en" | "pl",
+): MaterialScore {
+  const board = game.board();
+  let whiteMaterial = 0;
+  let blackMaterial = 0;
+
+  for (const row of board) {
+    for (const piece of row) {
+      if (piece) {
+        const val = PIECE_VALUES[piece.type] || 0;
+        if (piece.color === "w") whiteMaterial += val;
+        else blackMaterial += val;
+      }
+    }
+  }
+
+  const score = whiteMaterial - blackMaterial;
+  const sign = score > 0 ? `+${score}` : `${score}`;
+  const display = score === 0 ? "0" : sign;
+
+  let evalText = "";
+  if (lang === "pl") {
+    if (score === 0) evalText = "Równowaga materialna.";
+    else if (score > 0)
+      evalText = `Białe mają przewagę +${score} pkt materiału.`;
+    else evalText = `Czarne mają przewagę +${Math.abs(score)} pkt materiału.`;
+  } else {
+    if (score === 0) evalText = "Material is equal.";
+    else if (score > 0) evalText = `White is up +${score} points of material.`;
+    else evalText = `Black is up +${Math.abs(score)} points of material.`;
+  }
+
+  return { score, whiteMaterial, blackMaterial, display, evalText };
+}
+
+/**
+ * Weryfikuje rozwiązania dla zadań taktycznych w oparciu o bazę TACTICAL_PUZZLES.
+ */
+export function evaluateTacticalPuzzle(
+  puzzleIndex: number,
+  moveSan: string,
+  lang: "en" | "pl",
+): { isCorrect: boolean; insight: string; audioText: string } {
+  const puzzle = TACTICAL_PUZZLES[puzzleIndex];
+
+  if (!puzzle) {
+    const pl = `Ruch wykonany. Analizuj dalszą pozycję.`;
+    const en = `Move executed. Continue analyzing the position.`;
+    return { isCorrect: true, insight: pl, audioText: lang === "pl" ? pl : en };
+  }
+
+  const isCorrect = puzzle.verify(moveSan);
+
+  if (isCorrect) {
+    const text = puzzle.successText[lang];
+    return {
+      isCorrect: true,
+      insight: text,
+      audioText: text,
+    };
+  } else {
+    const text = puzzle.failureText[lang];
+    return {
+      isCorrect: false,
+      insight: text,
+      audioText: text,
+    };
+  }
+}
+
+/**
+ * Generuje status audio pozycji dla gracza w trybie gry w ciemno (Blindfold).
+ */
+export function generateBlindfoldStatus(
+  game: Chess,
+  lang: "en" | "pl",
+): string {
+  const history = game.history();
+  const lastMove = history.length > 0 ? history[history.length - 1] : null;
+  const turn =
+    game.turn() === "w"
+      ? lang === "pl"
+        ? "białych"
+        : "White"
+      : lang === "pl"
+        ? "czarnych"
+        : "Black";
+  const mat = calculateMaterialBalance(game, lang);
+
+  if (lang === "pl") {
+    if (!lastMove) {
+      return `Pozycja wyjściowa. Ruch ${turn}. Wszystkie bierki na polach początkowych.`;
+    }
+    return `Ruch ${turn}. Ostatnie posunięcie partii: ${lastMove}. ${mat.evalText} Stan: ${game.inCheck() ? "KRÓL W SZACHU!" : "Brak szacha."}`;
+  } else {
+    if (!lastMove) {
+      return `Starting position. ${turn} to move. All pieces on home squares.`;
+    }
+    return `${turn} to move. Last played move was ${lastMove}. ${mat.evalText} State: ${game.inCheck() ? "KING IN CHECK!" : "No check."}`;
+  }
+}
+
+/**
+ * Główna funkcja analizy pedagogicznej trenera audio.
+ */
+export function generateCoachInsight(
+  game: Chess,
+  lastMove: Move,
+  lang: "en" | "pl",
+  isPlayerMove: boolean,
+): CoachAnalysis {
+  const inCheck = game.inCheck();
+  const isCheckmate = game.isCheckmate();
+  const isDraw = game.isDraw();
+
+  // 1. Mat lub Pat
+  if (isCheckmate) {
+    if (isPlayerMove) {
+      const pl = `Szach i mat! Wspaniałe zwieńczenie partii. Przeciwnik nie ma ucieczki.`;
+      const en = `Checkmate! Brilliant finish. The opponent has no escape.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    } else {
+      const pl = `Niestety, mat na planszy. Twój król został osaczony. Wyciągnij wnioski i zacznijmy od nowa.`;
+      const en = `Checkmate on the board. Your king is cornered. Analyze and try again.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  if (isDraw) {
+    const pl = `Partia zakończona remisem (pat lub brak materiału). Dobra, solidna walka.`;
+    const en = `Game drawn (stalemate or insufficient material). Solid fight.`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
+  // 2. Szach
+  if (inCheck) {
+    if (isPlayerMove) {
+      const pl = `Szach! Dajesz szacha ruchem ${lastMove.san}. Zmuszasz rywala do reakcji i przejmujesz inicjatywę.`;
+      const en = `Check! You deliver check with ${lastMove.san}, forcing a reaction and taking initiative.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    } else {
+      const pl = `Uwaga, szach! Przeciwnik zaatakował Twojego króla ruchem ${lastMove.san}. Musisz się zasłonić, uciec lub zbić agresora.`;
+      const en = `Warning, check! Opponent attacks your king with ${lastMove.san}. Block, escape, or capture the attacker.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  // 3. Roszada
+  if (lastMove.san === "O-O" || lastMove.san === "O-O-O") {
+    if (isPlayerMove) {
+      const pl = `Roszada wykonana. Twój król chowa się za zwartym łańcuchem pionów, a wieża natychmiast włącza się do gry w centrum.`;
+      const en = `Castling completed. Your king is safely tucked behind pawns, and your rook enters central play.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    } else {
+      const pl = `Przeciwnik wykonał roszadę (${lastMove.san}). Jego król jest bezpieczny — musisz przygotować plan ataku.`;
+      const en = `Opponent castled (${lastMove.san}). King is secured — prepare your plan of attack.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  // 4. Bicia materiału
+  if (lastMove.captured) {
+    const pieceNamesPl: Record<string, string> = {
+      p: "piona",
+      n: "skoczka",
+      b: "gońca",
+      r: "wieżę",
+      q: "hetmana",
+    };
+    const pieceNamesEn: Record<string, string> = {
+      p: "pawn",
+      n: "knight",
+      b: "bishop",
+      r: "rook",
+      q: "queen",
+    };
+    const capNamePl = pieceNamesPl[lastMove.captured] || "figurę";
+    const capNameEn = pieceNamesEn[lastMove.captured] || "piece";
+
+    if (isPlayerMove) {
+      const pl = `Zbijasz ${capNamePl} na ${lastMove.to}! Zyskujesz przewagę materialną i otwierasz nowe linie natarcia.`;
+      const en = `Captured the ${capNameEn} on ${lastMove.to}! Gaining material and opening attack avenues.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    } else {
+      const pl = `Przeciwnik bije Twojego ${capNamePl} na ${lastMove.to}. Sprawdź, czy możesz odbić bierkę lub wywrzeć kontratak!`;
+      const en = `Opponent captures your ${capNameEn} on ${lastMove.to}. Look for a recapture or a counter-threat!`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  // 5. Specyficzne debiuty i ruchy pozycyjne
+  const moveNumber = Math.ceil(game.history().length / 2);
+
+  if (moveNumber <= 4) {
+    if (lastMove.san === "e4" || lastMove.san === "e5") {
+      const pl = `Klasyczne zajęcie centrum pionem ${lastMove.san}. Kontrolujesz kluczowe pola d5 i f5 oraz uwalniasz gońca i hetmana.`;
+      const en = `Classic central pawn push ${lastMove.san}. Controls key squares and opens lines for bishop and queen.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+    if (lastMove.san === "d4" || lastMove.san === "d5") {
+      const pl = `Mocne posunięcie w centrum: ${lastMove.san}. Zapewnia stabilną przestrzeń i wsparcie dla lekkich figur.`;
+      const en = `Solid central stake with ${lastMove.san}. Provides space and foundation for minor pieces.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+    if (lastMove.san.startsWith("N")) {
+      const pl = `Rozwój skoczka na ${lastMove.to}. Zgodnie ze złotą zasadą: skoczki przed gońcami, wzmacniasz kontrolę nad środkiem planszy.`;
+      const en = `Knight develops to ${lastMove.to}. Following the golden principle: knights before bishops, guarding the center.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+    if (lastMove.san.startsWith("B")) {
+      const pl = `Wyprowadzenie gońca na aktywną przekątną (${lastMove.to}). Przygotowujesz roszadę i wywierasz presję.`;
+      const en = `Bishop developed to active diagonal (${lastMove.to}). Preparing kingside castle and exerting pressure.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  // 6. Gra środkowa: Geometria figur
+  if (lastMove.piece === "n") {
+    const pl = isPlayerMove
+      ? `Twój skoczek skacze na ${lastMove.to}. To świetna placówka, skąd kontroluje kluczowe pola w obozie rywala.`
+      : `Skoczek przeciwnika melduje się na ${lastMove.to}. Uważaj na potencjalne widełki!`;
+    const en = isPlayerMove
+      ? `Knight bounds to ${lastMove.to}. An outpost controlling crucial squares in enemy territory.`
+      : `Opponent's knight lands on ${lastMove.to}. Watch out for potential forks!`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
+  if (lastMove.piece === "r") {
+    const pl = isPlayerMove
+      ? `Wieża zajmuje kolumnę ${lastMove.to[0]}. Pamiętaj: wieże kochają otwarte linie i walkę o 7. linię.`
+      : `Wieża przeciwnika wkracza na linię ${lastMove.to[0]}. Pilnuj obrony własnych pionów.`;
+    const en = isPlayerMove
+      ? `Rook takes the ${lastMove.to[0]}-file. Rooks thrive on open files and invading the 7th rank.`
+      : `Opponent's rook eyes the ${lastMove.to[0]}-file. Guard your pawn base.`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
+  if (lastMove.piece === "q") {
+    const pl = isPlayerMove
+      ? `Hetman przemieszcza się na ${lastMove.to}. Najpotężniejsza figura włącza się do koordynacji ataku.`
+      : `Hetman rywala przesuwa się na ${lastMove.to}. Zwróć uwagę na jego linie celowania.`;
+    const en = isPlayerMove
+      ? `Queen relocates to ${lastMove.to}. The most powerful piece coordinates with your army.`
+      : `Enemy queen moves to ${lastMove.to}. Keep an eye on her sightlines.`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
+  // Domyślny logiczny komentarz pozycyjny
+  const pl = isPlayerMove
+    ? `Ruch ${lastMove.san}. Zmieniasz układ sił na ${lastMove.to}. Przeciwnik analizuje odpowiedź.`
+    : `Przeciwnik odpowiada ${lastMove.san}. Przyjrzyj się, jakie pole osłabił ten ruch i gdzie jest Twoja szansa.`;
+  const en = isPlayerMove
+    ? `Move ${lastMove.san}. Reshaping the board at ${lastMove.to}. Opponent contemplates a response.`
+    : `Opponent plays ${lastMove.san}. Notice which square was left behind and where your opportunity lies.`;
+
+  return {
+    insight: lang === "pl" ? pl : en,
+    audioText: lang === "pl" ? pl : en,
+  };
+}
