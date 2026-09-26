@@ -32,13 +32,21 @@ export function SiteHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-[#dfe5dc] bg-[#f7f8f5]/90 backdrop-blur-xl dark:border-[#29332e] dark:bg-[#111613]/90">
       <div className="mx-auto flex h-20 max-w-[1360px] items-center justify-between px-5 sm:px-8 lg:px-12">
-        {/* Logo i nazwa */}
+        {/* Logo i nazwa z jednoznacznym aria-label */}
         <button
           type="button"
+          aria-label={
+            lang === "pl"
+              ? "ChessTactics - Strona główna"
+              : "ChessTactics - Home"
+          }
           className="flex items-center gap-3 text-left focus:outline-none cursor-pointer"
           onClick={() => onScrollTo("top")}
         >
-          <span className="flex size-10 items-center justify-center rounded-xl bg-[#c8ee63] text-stone-950 shadow-sm">
+          <span
+            className="flex size-10 items-center justify-center rounded-xl bg-[#c8ee63] text-stone-950 shadow-sm"
+            aria-hidden="true"
+          >
             <Crown className="size-6 stroke-[2.2]" />
           </span>
           <span className="hidden text-sm font-semibold sm:block">
@@ -78,7 +86,9 @@ export function SiteHeader({
             type="button"
             onClick={onToggleLang}
             className="flex items-center rounded-lg border border-[#d5e1d0] px-3 py-2 text-xs font-bold text-[#65726a] hover:bg-stone-200/50 dark:border-[#2f3d33] dark:text-[#c4d4c8] dark:hover:bg-stone-800 transition-colors cursor-pointer"
-            aria-label="Zmień język"
+            aria-label={
+              lang === "pl" ? "Przełącz na język angielski" : "Switch to Polish"
+            }
           >
             <Languages className="mr-1.5 size-4 text-[#789b35]" />
             {lang.toUpperCase()}
@@ -88,7 +98,15 @@ export function SiteHeader({
             type="button"
             onClick={onToggleDark}
             className="rounded-lg border border-[#d5e1d0] p-2 text-[#65726a] hover:bg-stone-200/50 dark:border-[#2f3d33] dark:text-[#c4d4c8] dark:hover:bg-stone-800 transition-colors cursor-pointer"
-            aria-label="Przełącz motyw"
+            aria-label={
+              dark
+                ? lang === "pl"
+                  ? "Włącz jasny motyw"
+                  : "Switch to light theme"
+                : lang === "pl"
+                  ? "Włącz ciemny motyw"
+                  : "Switch to dark theme"
+            }
           >
             {dark ? (
               <Sun className="size-4 text-amber-400" />
