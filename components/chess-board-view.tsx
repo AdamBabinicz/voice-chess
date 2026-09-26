@@ -46,7 +46,7 @@ export function ChessBoardView({
     <div className="w-full">
       <div
         className="relative aspect-square w-full overflow-hidden rounded-2xl border border-[#cad7c5] dark:border-[#334238] shadow-inner bg-[#eef4e8]"
-        role="grid"
+        role="region"
         aria-label="Interactive chess board"
       >
         <div className="grid grid-cols-8 grid-rows-8 h-full w-full">
