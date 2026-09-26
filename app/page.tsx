@@ -301,14 +301,12 @@ export default function Page() {
       // Dźwięk błędu przy próbie nielegalnego ruchu
       playIllegalSound();
 
-      // Jeśli ruch był niedozwolony, informujemy gracza, ale NIE niszczymy analizy trenera
       const err =
         lang === "pl"
           ? "To posunięcie jest niedozwolone w tej pozycji."
           : "Illegal move. Please try another move.";
       setCoachInsight(err);
 
-      // Przywróć poprzednią trafną radę trenera po 2 sekundach
       window.setTimeout(() => {
         if (lastValidCoachInsightRef.current) {
           setCoachInsight(lastValidCoachInsightRef.current);
@@ -436,7 +434,6 @@ export default function Page() {
         dark && "dark bg-[#111613] text-[#edf2ed]",
       )}
     >
-      {/* Odseparowany nagłówek */}
       <SiteHeader
         lang={lang}
         onToggleLang={() => setLang(lang === "en" ? "pl" : "en")}
@@ -450,23 +447,23 @@ export default function Page() {
         settingsLabel={t.settings}
       />
 
-      {/* Główna zawartość */}
       <main id="top">
-        {/* Sekcja Hero oraz karta szachownicy na żywo */}
         <section className="mx-auto grid max-w-[1360px] gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-16">
           <div className="max-w-xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-[#eaf4d5] px-3.5 py-1.5 text-xs font-bold tracking-[0.16em] text-[#557322] dark:bg-[#1f2d22] dark:text-[#a8d655]">
-              <span className="size-2 rounded-full bg-[#789b35] animate-pulse" />
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-700/30 bg-[#eaf4d5] px-3.5 py-1.5 text-xs font-bold tracking-[0.16em] text-[#2d4e13] dark:bg-[#1f2d22] dark:text-[#bcee68]">
+              <span className="size-2 rounded-full bg-[#365314] animate-pulse" />
               {t.eyebrow}
             </div>
 
             <h1 className="font-serif text-4xl font-semibold leading-[1.05] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
               {t.title}
               <br />
-              <span className="text-[#789b35]">{t.accent}</span>
+              <span className="text-[#2d4e13] dark:text-[#bcee68]">
+                {t.accent}
+              </span>
             </h1>
 
-            <p className="mt-6 max-w-md text-base sm:text-lg leading-relaxed text-[#65726a] dark:text-[#aab7ad]">
+            <p className="mt-6 max-w-md text-base sm:text-lg leading-relaxed text-[#3c4a41] dark:text-[#cbd5e1]">
               {t.body}
             </p>
 
@@ -482,7 +479,7 @@ export default function Page() {
               <Button
                 type="button"
                 variant="ghost"
-                className="h-12 rounded-xl text-[#65726a] hover:text-[#17201c] dark:text-[#c4d4c8] dark:hover:text-white cursor-pointer"
+                className="h-12 rounded-xl text-[#3c4a41] hover:text-[#17201c] dark:text-[#cbd5e1] dark:hover:text-white cursor-pointer"
                 onClick={() => scrollToSection("tactics")}
               >
                 {t.explore}
@@ -493,19 +490,19 @@ export default function Page() {
             <div className="mt-12 grid max-w-lg grid-cols-3 gap-4 border-t border-[#dfe5dc] pt-6 dark:border-[#29332e]">
               <div>
                 <strong className="font-serif text-2xl font-bold">12</strong>
-                <p className="mt-1 text-xs text-[#78857d] dark:text-[#97a59c]">
+                <p className="mt-1 text-xs font-semibold text-[#424e46] dark:text-[#cbd5e1]">
                   {t.streak}
                 </p>
               </div>
               <div>
                 <strong className="font-serif text-2xl font-bold">1,247</strong>
-                <p className="mt-1 text-xs text-[#78857d] dark:text-[#97a59c]">
+                <p className="mt-1 text-xs font-semibold text-[#424e46] dark:text-[#cbd5e1]">
                   {t.rating}
                 </p>
               </div>
               <div>
                 <strong className="font-serif text-2xl font-bold">38</strong>
-                <p className="mt-1 text-xs text-[#78857d] dark:text-[#97a59c]">
+                <p className="mt-1 text-xs font-semibold text-[#424e46] dark:text-[#cbd5e1]">
                   {t.sessions}
                 </p>
               </div>
@@ -517,21 +514,20 @@ export default function Page() {
             id="live-coach"
             className="rounded-[2rem] border border-[#dce5d8] bg-white p-4 shadow-[0_20px_60px_-20px_rgba(52,73,57,.2)] dark:border-[#2b3a30] dark:bg-[#18201b] sm:p-6"
           >
-            <div className="mb-4 flex items-center justify-between text-xs font-bold tracking-[0.15em] text-[#789b35]">
+            <div className="mb-4 flex items-center justify-between text-xs font-bold tracking-[0.15em] text-[#2d4e13] dark:text-[#bcee68]">
               <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-[#789b35] animate-ping" />
+                <span className="size-2 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] animate-ping" />
                 {t.live}{" "}
                 {activePuzzle !== null &&
                   TACTICAL_PUZZLES[activePuzzle] &&
                   `· ${TACTICAL_PUZZLES[activePuzzle].title[lang]}`}
               </span>
-              <span className="text-[#88958d] dark:text-[#a0afa5]">
+              <span className="text-[#3c4a41] dark:text-[#cbd5e1] font-semibold">
                 {turn === "w" ? t.turnWhite : t.turnBlack}
               </span>
             </div>
 
             <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_220px]">
-              {/* Szachownica SVG */}
               <ChessBoardView
                 board={board}
                 selectedSquare={selected}
@@ -545,30 +541,28 @@ export default function Page() {
                 }}
               />
 
-              {/* Informacje trenera i ruchy */}
               <div className="flex flex-col gap-4">
-                <div className="rounded-2xl border border-[#e0e7dd] bg-[#f1f5ed] p-4 dark:border-[#2f3d33] dark:bg-[#202b25]">
-                  <div className="mb-2 flex items-center justify-between text-xs font-bold text-[#789b35]">
+                <div className="rounded-2xl border border-[#d8e2d4] bg-[#f1f5ed] p-4 dark:border-[#2f3d33] dark:bg-[#202b25]">
+                  <div className="mb-2 flex items-center justify-between text-xs font-bold text-[#2d4e13] dark:text-[#bcee68]">
                     <span className="flex items-center gap-1.5">
                       <AudioLines className="size-4" />
                       {t.coach}
                     </span>
                     {isSpeaking && (
                       <span className="flex gap-0.5">
-                        <span className="size-1 rounded-full bg-[#789b35] animate-ping" />
+                        <span className="size-1 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] animate-ping" />
                       </span>
                     )}
                   </div>
-                  <p className="font-serif text-sm italic leading-relaxed text-[#59665d] dark:text-[#b8c5bb]">
+                  <p className="font-serif text-sm italic leading-relaxed text-[#2a362f] dark:text-[#e2e8f0]">
                     &ldquo;{coachInsight}&rdquo;
                   </p>
 
-                  {/* Przyciski trenera: Odsłuchaj + Analiza Mistrza AI */}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => announce(coachInsight)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-[#789b35] hover:text-[#557322] cursor-pointer"
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#2d4e13] dark:text-[#bcee68] hover:underline cursor-pointer"
                     >
                       {isSpeaking ? (
                         <VolumeX className="size-4" />
@@ -582,12 +576,12 @@ export default function Page() {
                       type="button"
                       onClick={handleDeepAiAnalysis}
                       disabled={isAnalyzingAi}
-                      className="flex items-center gap-1.5 rounded-lg border border-[#c8ee63]/60 bg-[#c8ee63]/25 px-2.5 py-1 text-[11px] font-bold text-[#476317] hover:bg-[#c8ee63]/40 disabled:opacity-50 dark:border-[#a8d655]/40 dark:bg-[#a8d655]/15 dark:text-[#bced6b] dark:hover:bg-[#a8d655]/30 transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 rounded-lg border border-[#365314]/30 bg-[#c8ee63]/30 px-2.5 py-1 text-[11px] font-bold text-[#1f3708] hover:bg-[#c8ee63]/50 disabled:opacity-50 dark:border-[#a8d655]/40 dark:bg-[#a8d655]/20 dark:text-[#bced6b] dark:hover:bg-[#a8d655]/40 transition-colors cursor-pointer"
                     >
                       {isAnalyzingAi ? (
-                        <Loader2 className="size-3 animate-spin text-[#789b35]" />
+                        <Loader2 className="size-3 animate-spin text-[#2d4e13]" />
                       ) : (
-                        <Sparkles className="size-3 text-[#789b35]" />
+                        <Sparkles className="size-3 text-[#2d4e13] dark:text-[#bcee68]" />
                       )}
                       <span>
                         {isAnalyzingAi ? t.aiAnalyzing : t.aiAnalysisBtn}
@@ -598,9 +592,9 @@ export default function Page() {
                       <button
                         type="button"
                         onClick={speakBlindfoldStatus}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-white cursor-pointer"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-stone-800 hover:text-stone-950 dark:text-stone-200 dark:hover:text-white cursor-pointer"
                       >
-                        <Headphones className="size-3.5 text-[#789b35]" />
+                        <Headphones className="size-3.5 text-[#2d4e13] dark:text-[#bcee68]" />
                         <span>{t.statusAudio}</span>
                       </button>
                     )}
@@ -608,7 +602,7 @@ export default function Page() {
                 </div>
 
                 <div>
-                  <div className="mb-2 flex justify-between text-xs font-bold text-[#748078]">
+                  <div className="mb-2 flex justify-between text-xs font-bold text-[#3c4a41] dark:text-[#cbd5e1]">
                     <span>
                       {t.moves} ({moves.length} ply)
                     </span>
@@ -616,10 +610,10 @@ export default function Page() {
                       className={cn(
                         "rounded-full px-2 py-0.5 text-[11px] font-bold font-mono transition-colors",
                         material.score > 0
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-400"
+                          ? "bg-emerald-200 text-emerald-950 dark:bg-emerald-950/80 dark:text-emerald-300"
                           : material.score < 0
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-400"
-                            : "bg-[#eaf4d5] text-[#62822d] dark:bg-[#29382b] dark:text-[#a8d655]",
+                            ? "bg-amber-200 text-amber-950 dark:bg-amber-950/80 dark:text-amber-300"
+                            : "bg-[#d8e6be] text-[#23380e] dark:bg-[#29382b] dark:text-[#bcee68]",
                       )}
                     >
                       {material.score > 0
@@ -629,7 +623,7 @@ export default function Page() {
                           : "Równe (0)"}
                     </span>
                   </div>
-                  <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#e0e7dd] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e]">
+                  <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#d8e2d4] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e]">
                     {moves.length ? (
                       moves.map((m, i) => (
                         <span
@@ -637,8 +631,8 @@ export default function Page() {
                           className={cn(
                             "rounded px-1 py-0.5",
                             i % 2 === 0
-                              ? "font-bold text-stone-900 dark:text-stone-100"
-                              : "text-stone-600 dark:text-stone-400",
+                              ? "font-bold text-stone-950 dark:text-stone-50"
+                              : "text-stone-700 dark:text-stone-300",
                           )}
                         >
                           {i % 2 === 0 ? `${Math.floor(i / 2) + 1}. ` : ""}
@@ -646,7 +640,7 @@ export default function Page() {
                         </span>
                       ))
                     ) : (
-                      <span className="font-sans text-[#89968c]">
+                      <span className="font-sans text-[#424e46] dark:text-[#cbd5e1]">
                         {t.listen}
                       </span>
                     )}
@@ -658,14 +652,14 @@ export default function Page() {
                     type="button"
                     onClick={undoMove}
                     disabled={moves.length === 0}
-                    className="flex-1 rounded-xl border border-stone-300 py-1.5 text-xs font-semibold hover:bg-stone-100 disabled:opacity-40 dark:border-stone-700 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                    className="flex-1 rounded-xl border border-stone-400 py-1.5 text-xs font-semibold text-stone-800 hover:bg-stone-100 disabled:opacity-40 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                   >
                     {t.undoBtn}
                   </button>
                   <button
                     type="button"
                     onClick={newGame}
-                    className="flex-1 rounded-xl bg-stone-900 py-1.5 text-xs font-bold text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 transition-colors cursor-pointer"
+                    className="flex-1 rounded-xl bg-stone-950 py-1.5 text-xs font-bold text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950 transition-colors cursor-pointer"
                   >
                     {t.newGameBtn}
                   </button>
@@ -674,16 +668,16 @@ export default function Page() {
             </div>
 
             {/* Stopka szachownicy */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#e5ebe1] pt-4 text-xs font-semibold text-[#78857d] dark:border-[#334238]">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#d8e2d4] pt-4 text-xs font-semibold text-[#3c4a41] dark:border-[#334238] dark:text-[#cbd5e1]">
               <span>{blind ? t.blind : t.visible}</span>
               <button
                 type="button"
                 onClick={() => setBlind(!blind)}
                 className={cn(
-                  "flex items-center rounded-xl px-3 py-2 transition-colors cursor-pointer",
+                  "flex items-center rounded-xl px-3 py-2 transition-colors cursor-pointer font-bold",
                   blind
-                    ? "bg-[#c8ee63] font-bold text-stone-950"
-                    : "bg-[#edf4e5] text-[#62822d] dark:bg-[#29382b] dark:text-[#a8d655]",
+                    ? "bg-[#c8ee63] text-stone-950"
+                    : "bg-[#e2edd3] text-[#23380e] dark:bg-[#29382b] dark:text-[#bcee68]",
                 )}
               >
                 {blind ? (
@@ -716,7 +710,6 @@ export default function Page() {
           />
         </div>
 
-        {/* Odseparowana sekcja zadań taktycznych */}
         <TacticsSection
           lang={lang}
           activePuzzle={activePuzzle}
@@ -727,7 +720,6 @@ export default function Page() {
           activeBadgeText={t.activePuzzleBadge}
         />
 
-        {/* Sekcja "Jak to działa" */}
         <section
           id="how-it-works"
           className="mx-auto max-w-[1360px] px-5 py-16 sm:px-8 lg:px-12"
@@ -739,7 +731,7 @@ export default function Page() {
                 key={step}
                 className="rounded-2xl border border-[#dfe5dc] bg-white p-6 shadow-sm dark:border-[#29332e] dark:bg-[#18201b]"
               >
-                <span className="inline-block rounded-lg bg-[#eaf4d5] px-2.5 py-1 font-mono text-xs font-bold text-[#789b35] dark:bg-[#29382b]">
+                <span className="inline-block rounded-lg bg-[#eaf4d5] px-2.5 py-1 font-mono text-xs font-bold text-[#2d4e13] dark:bg-[#29382b] dark:text-[#bcee68]">
                   0{i + 1}
                 </span>
                 <h3 className="mt-6 font-serif text-lg font-semibold">
@@ -751,17 +743,16 @@ export default function Page() {
         </section>
       </main>
 
-      {/* Stopka strony */}
       <footer className="border-t border-[#dfe5dc] px-5 py-10 dark:border-[#29332e]">
-        <div className="mx-auto flex max-w-[1360px] flex-col gap-6 text-sm text-[#78857d] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-[1360px] flex-col gap-6 text-sm text-[#3c4a41] dark:text-[#cbd5e1] sm:flex-row sm:items-center sm:justify-between">
           <div>
             <strong className="font-serif text-[#17201c] dark:text-white">
               ChessTactics
             </strong>
-            <p className="mt-1 max-w-sm text-xs leading-relaxed">
+            <p className="mt-1 max-w-sm text-xs leading-relaxed text-[#424e46] dark:text-[#cbd5e1]">
               {t.description}
             </p>
-            <p className="mt-2 text-xs">
+            <p className="mt-2 text-xs text-[#424e46] dark:text-[#94a3b8]">
               © 2026 ChessTactics. All rights reserved.
             </p>
           </div>
@@ -773,14 +764,14 @@ export default function Page() {
             <button
               type="button"
               onClick={() => setLegal("privacy")}
-              className="underline hover:text-[#17201c] dark:hover:text-white cursor-pointer"
+              className="underline text-[#3c4a41] dark:text-[#cbd5e1] hover:text-[#17201c] dark:hover:text-white cursor-pointer"
             >
               {t.privacy}
             </button>
             <button
               type="button"
               onClick={() => setLegal("terms")}
-              className="underline hover:text-[#17201c] dark:hover:text-white cursor-pointer"
+              className="underline text-[#3c4a41] dark:text-[#cbd5e1] hover:text-[#17201c] dark:hover:text-white cursor-pointer"
             >
               {t.terms}
             </button>
@@ -788,10 +779,9 @@ export default function Page() {
         </div>
       </footer>
 
-      {/* Pasek Cookies */}
       {cookies && (
         <div className="fixed inset-x-4 bottom-4 z-40 flex flex-col gap-4 rounded-2xl border border-[#d5e1d0] bg-white p-5 shadow-2xl dark:border-[#334238] dark:bg-[#1d2820] sm:inset-x-auto sm:right-6 sm:max-w-xl sm:flex-row sm:items-center">
-          <p className="flex-1 text-xs text-[#59665d] dark:text-[#b8c5bb] sm:text-sm">
+          <p className="flex-1 text-xs text-[#2a362f] dark:text-[#e2e8f0] sm:text-sm">
             {t.cookie}{" "}
             <button
               type="button"
@@ -820,7 +810,6 @@ export default function Page() {
         </div>
       )}
 
-      {/* Powrót na górę */}
       {mounted && showTop && (
         <button
           type="button"
@@ -832,7 +821,6 @@ export default function Page() {
         </button>
       )}
 
-      {/* Modale */}
       <SettingsModal
         isOpen={settings}
         onClose={() => setSettings(false)}

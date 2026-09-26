@@ -109,7 +109,7 @@ export function ChessBoardView({
       </div>
 
       {/* Board Footnote / Coordinates */}
-      <div className="mt-3 flex justify-between text-[10px] font-bold tracking-widest text-[#839184]">
+      <div className="mt-3 flex justify-between text-[10px] font-bold tracking-widest text-[#3c4a41] dark:text-[#cbd5e1]">
         <span>A B C D E F G H</span>
         <span>{labels.hint}</span>
       </div>
