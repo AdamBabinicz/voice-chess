@@ -81,12 +81,13 @@ export function TacticsSection({
                     </span>
                   </div>
 
-                  <h3 className="mt-5 font-serif text-lg font-semibold text-[#17201c] dark:text-white">
+                  {/* Zamiana h3 na semantyczny span block spełnia regułę W3C ARIA */}
+                  <span className="block mt-5 font-serif text-lg font-semibold text-[#17201c] dark:text-white">
                     {puzzle.title[lang]}
-                  </h3>
-                  <p className="mt-1.5 text-xs leading-relaxed text-[#3c4a41] dark:text-[#cbd5e1]">
+                  </span>
+                  <span className="block mt-1.5 text-xs leading-relaxed text-[#3c4a41] dark:text-[#cbd5e1]">
                     {puzzle.desc[lang]}
-                  </p>
+                  </span>
                 </div>
 
                 <div className="mt-6 flex items-center gap-1 text-xs font-bold text-[#2d4e13] dark:text-[#bcee68]">
