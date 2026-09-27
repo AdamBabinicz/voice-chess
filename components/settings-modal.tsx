@@ -11,6 +11,8 @@ interface SettingsModalProps {
   setLang: (lang: "en" | "pl") => void;
   blind: boolean;
   setBlind: (blind: boolean) => void;
+  coachMuted?: boolean;
+  setCoachMuted?: (muted: boolean) => void;
   speed: string;
   setSpeed: (speed: string) => void;
   difficulty: string;
@@ -29,6 +31,7 @@ interface SettingsModalProps {
     voiceInput: string;
     continuous: string;
     push: string;
+    coachVoiceActive?: string;
     done: string;
     close: string;
   };
@@ -41,6 +44,8 @@ export function SettingsModal({
   setLang,
   blind,
   setBlind,
+  coachMuted = false,
+  setCoachMuted,
   speed,
   setSpeed,
   difficulty,
@@ -70,7 +75,7 @@ export function SettingsModal({
             type="button"
             onClick={onClose}
             aria-label={labels.close}
-            className="text-2xl text-stone-500 hover:text-stone-950 dark:hover:text-white"
+            className="text-2xl text-stone-500 hover:text-stone-950 dark:hover:text-white cursor-pointer"
           >
             ×
           </button>
@@ -92,6 +97,20 @@ export function SettingsModal({
               </option>
             </select>
           </label>
+
+          {setCoachMuted && (
+            <label className="flex items-center justify-between gap-4">
+              <span className="font-semibold">
+                {labels.coachVoiceActive || "Głos trenera"}
+              </span>
+              <input
+                type="checkbox"
+                checked={!coachMuted}
+                onChange={(e) => setCoachMuted(!e.target.checked)}
+                className="size-5 rounded accent-[#789b35]"
+              />
+            </label>
+          )}
 
           <label className="flex items-center justify-between gap-4">
             <span className="font-semibold">{labels.blind}</span>
@@ -163,7 +182,7 @@ export function SettingsModal({
         <Button
           type="button"
           onClick={onClose}
-          className="mt-8 w-full rounded-xl bg-stone-950 font-bold text-white hover:bg-stone-800 dark:bg-[#c8ee63] dark:text-stone-950"
+          className="mt-8 w-full rounded-xl bg-stone-950 font-bold text-white hover:bg-stone-800 dark:bg-[#c8ee63] dark:text-stone-950 cursor-pointer"
         >
           {labels.done}
         </Button>

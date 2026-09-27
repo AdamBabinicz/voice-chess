@@ -24,6 +24,7 @@ import { TacticsSection } from "@/components/tactics-section";
 import {
   calculateMaterialBalance,
   evaluateTacticalPuzzle,
+  findBestEngineMove,
   generateBlindfoldStatus,
   generateCoachInsight,
   MaterialScore,
@@ -56,6 +57,7 @@ export default function Page() {
   const [speed, setSpeed] = useState("1");
   const [voiceMode, setVoiceMode] = useState<"continuous" | "push">("push");
   const [coachInsight, setCoachInsight] = useState("");
+  const [coachMuted, setCoachMuted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [activePuzzle, setActivePuzzle] = useState<number | null>(null);
@@ -104,9 +106,14 @@ export default function Page() {
   };
 
   /**
-   * Płynna synteza mowy z obsługą kolejkowania i blokadą mikrofonu
+   * Płynna synteza mowy z obsługą kolejkowania, wyciszenia i blokadą mikrofonu
    */
   const announce = (message: string, onComplete?: () => void) => {
+    if (coachMuted) {
+      if (onComplete) onComplete();
+      return;
+    }
+
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         window.speechSynthesis.cancel();
@@ -173,27 +180,17 @@ export default function Page() {
     }
   };
 
+  /**
+   * Silnik odpowiedzi bota szachowego z obsługą poziomów Beginner / Intermediate / Master
+   */
   const executeComputerResponse = () => {
     if (gameInstance.isGameOver()) return;
 
     try {
-      const legalMoves = gameInstance.moves({ verbose: true });
-      if (!legalMoves.length) return;
+      const bestMove = findBestEngineMove(gameInstance, difficulty);
+      if (!bestMove) return;
 
-      let chosen = legalMoves[0];
-      if (difficulty === "beginner") {
-        chosen = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      } else {
-        const captures = legalMoves.filter(
-          (m) => m.captured || m.san.includes("+"),
-        );
-        chosen =
-          captures.length > 0
-            ? captures[Math.floor(Math.random() * captures.length)]
-            : legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      }
-
-      const reply = gameInstance.move(chosen);
+      const reply = gameInstance.move(bestMove);
       setBoard([...gameInstance.board()]);
       setTurn(gameInstance.turn());
       setMoves([...gameInstance.history()]);
@@ -315,15 +312,21 @@ export default function Page() {
     }
   };
 
+  /**
+   * Obsługa kliknięcia pola na szachownicy:
+   * - kliknięcie własnej bierki natychmiast ją wybiera (bez potrzeby odklikiwania poprzedniej!)
+   * - powtórne kliknięcie tej samej bierki odznacza ją
+   * - kliknięcie docelowego pola próbuje wykonać ruch
+   */
   const handleSquareClick = (i: number) => {
     const rowIndex = Math.floor(i / 8);
     const columnIndex = i % 8;
     const clickedSquare =
       `${String.fromCharCode(97 + columnIndex)}${8 - rowIndex}` as Square;
+    const clickedPiece = board[rowIndex][columnIndex];
 
     if (selected === null) {
-      const piece = board[rowIndex][columnIndex];
-      if (piece && piece.color === gameInstance.turn()) {
+      if (clickedPiece && clickedPiece.color === gameInstance.turn()) {
         setSelected(i);
       }
     } else {
@@ -331,11 +334,20 @@ export default function Page() {
       const fromCol = selected % 8;
       const fromSquare = `${String.fromCharCode(97 + fromCol)}${8 - fromRow}`;
 
+      // 1. Kliknięcie w to samo pole odznacza je
       if (fromSquare === clickedSquare) {
         setSelected(null);
-      } else {
-        applyMove({ from: fromSquare, to: clickedSquare });
+        return;
       }
+
+      // 2. Kliknięcie w inną własną bierkę natychmiast przestawia zaznaczenie
+      if (clickedPiece && clickedPiece.color === gameInstance.turn()) {
+        setSelected(i);
+        return;
+      }
+
+      // 3. W innym wypadku próbujemy wykonać ruch z zaznaczonego pola na kliknięte
+      applyMove({ from: fromSquare, to: clickedSquare });
     }
   };
 
@@ -509,7 +521,7 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Karta szachownicy - semantyczny div zamiast section usuwa ostrzeżenie W3C #33 */}
+          {/* Karta szachownicy */}
           <div
             id="live-coach"
             className="rounded-[2rem] border border-[#dce5d8] bg-white p-4 shadow-[0_20px_60px_-20px_rgba(52,73,57,.2)] dark:border-[#2b3a30] dark:bg-[#18201b] sm:p-6"
@@ -548,11 +560,32 @@ export default function Page() {
                       <AudioLines className="size-4" />
                       {t.coach}
                     </span>
-                    {isSpeaking && (
-                      <span className="flex gap-0.5">
-                        <span className="size-1 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] animate-ping" />
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isSpeaking && (
+                        <span className="flex gap-0.5">
+                          <span className="size-1 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] animate-ping" />
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!coachMuted && typeof window !== "undefined") {
+                            window.speechSynthesis?.cancel();
+                            setIsSpeaking(false);
+                          }
+                          setCoachMuted(!coachMuted);
+                        }}
+                        title={coachMuted ? t.unmuteCoach : t.muteCoach}
+                        aria-label={coachMuted ? t.unmuteCoach : t.muteCoach}
+                        className="rounded-lg p-1 text-[#2d4e13] hover:bg-[#dfead1] dark:text-[#bcee68] dark:hover:bg-[#2b3a30] transition-colors cursor-pointer"
+                      >
+                        {coachMuted ? (
+                          <VolumeX className="size-3.5 text-stone-400 dark:text-stone-500" />
+                        ) : (
+                          <Volume2 className="size-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <p className="font-serif text-sm italic leading-relaxed text-[#2a362f] dark:text-[#e2e8f0]">
                     &ldquo;{coachInsight}&rdquo;
@@ -562,7 +595,8 @@ export default function Page() {
                     <button
                       type="button"
                       onClick={() => announce(coachInsight)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-[#2d4e13] dark:text-[#bcee68] hover:underline cursor-pointer"
+                      disabled={coachMuted}
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#2d4e13] disabled:opacity-40 dark:text-[#bcee68] hover:underline cursor-pointer"
                     >
                       {isSpeaking ? (
                         <VolumeX className="size-4" />
@@ -828,6 +862,8 @@ export default function Page() {
         setLang={setLang}
         blind={blind}
         setBlind={setBlind}
+        coachMuted={coachMuted}
+        setCoachMuted={setCoachMuted}
         speed={speed}
         setSpeed={setSpeed}
         difficulty={difficulty}
@@ -846,6 +882,7 @@ export default function Page() {
           voiceInput: t.voiceInput,
           continuous: t.continuous,
           push: t.push,
+          coachVoiceActive: t.coachVoiceActive,
           done: t.done,
           close: t.close,
         }}

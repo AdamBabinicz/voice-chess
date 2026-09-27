@@ -41,6 +41,9 @@ export interface TranslationSchema {
   voiceInput: string;
   continuous: string;
   push: string;
+  muteCoach: string;
+  unmuteCoach: string;
+  coachVoiceActive: string;
   tacticsTitle: string;
   tacticsBody: string;
   activePuzzleBadge: string;
@@ -107,6 +110,9 @@ export const translations: Record<Lang, TranslationSchema> = {
     voiceInput: "Voice input mode",
     continuous: "Continuous listening",
     push: "Press to speak",
+    muteCoach: "Mute coach voice",
+    unmuteCoach: "Enable coach voice",
+    coachVoiceActive: "Coach voice audio",
     tacticsTitle: "Tactical puzzles",
     tacticsBody: "Sharpen the tactical motifs that win games in every phase.",
     activePuzzleBadge: "Active puzzle",
@@ -171,6 +177,9 @@ export const translations: Record<Lang, TranslationSchema> = {
     voiceInput: "Tryb głosowy",
     continuous: "Nasłuch ciągły",
     push: "Naciśnij, aby mówić",
+    muteCoach: "Wycisz głos trenera",
+    unmuteCoach: "Włącz głos trenera",
+    coachVoiceActive: "Głos lektora trenera",
     tacticsTitle: "Taktyczne łamigłówki",
     tacticsBody:
       "Ćwicz motywy taktyczne, które decydują o zwycięstwie w każdej partii.",

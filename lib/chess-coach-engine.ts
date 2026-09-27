@@ -1,5 +1,5 @@
 // lib/chess-coach-engine.ts
-import { Chess, Move, PieceSymbol } from "chess.js";
+import { Chess, Move, PieceSymbol, Square } from "chess.js";
 
 export interface CoachAnalysis {
   insight: string;
@@ -36,6 +36,36 @@ const PIECE_VALUES: Record<PieceSymbol, number> = {
   q: 9,
   k: 0,
 };
+
+const CENTIPAWN_VALUES: Record<PieceSymbol, number> = {
+  p: 100,
+  n: 320,
+  b: 330,
+  r: 500,
+  q: 900,
+  k: 20000,
+};
+
+// Pozycyjne tabele wartości pól (Piece-Square Tables) dla poziomu mistrzowskiego
+const PAWN_TABLE = [
+  0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30,
+  20, 10, 10, 5, 5, 10, 25, 25, 10, 5, 5, 0, 0, 0, 20, 20, 0, 0, 0, 5, -5, -10,
+  0, 0, -10, -5, 5, 5, 10, 10, -20, -20, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+const KNIGHT_TABLE = [
+  -50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 0, 0, 0, -20, -40, -30,
+  0, 10, 15, 15, 10, 0, -30, -30, 5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 20, 20,
+  15, 0, -30, -30, 5, 10, 15, 15, 10, 5, -30, -40, -20, 0, 5, 5, 0, -20, -40,
+  -50, -40, -30, -30, -30, -30, -40, -50,
+];
+
+const BISHOP_TABLE = [
+  -20, -10, -10, -10, -10, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5,
+  10, 10, 5, 0, -10, -10, 5, 5, 10, 10, 5, 5, -10, -10, 0, 10, 10, 10, 10, 0,
+  -10, -10, 10, 10, 10, 10, 10, 10, -10, -10, 5, 0, 0, 0, 0, 5, -10, -20, -10,
+  -10, -10, -10, -10, -10, -20,
+];
 
 /**
  * Baza sprawdzonych łamigłówek taktycznych z precyzyjną oceną wygrywających ruchów.
@@ -200,6 +230,173 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
     },
   },
 ];
+
+/**
+ * Oblicza statyczną ocenę pozycji z perspektywy białych (w centypionach)
+ */
+function evaluateStaticPosition(game: Chess): number {
+  if (game.isCheckmate()) {
+    return game.turn() === "w" ? -30000 : 30000;
+  }
+  if (game.isDraw()) {
+    return 0;
+  }
+
+  let totalScore = 0;
+  const board = game.board();
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+
+      const baseVal = CENTIPAWN_VALUES[piece.type] || 0;
+      let positionalVal = 0;
+
+      const idx = piece.color === "w" ? r * 8 + c : (7 - r) * 8 + c;
+
+      if (piece.type === "p") {
+        positionalVal = PAWN_TABLE[idx] || 0;
+      } else if (piece.type === "n") {
+        positionalVal = KNIGHT_TABLE[idx] || 0;
+      } else if (piece.type === "b") {
+        positionalVal = BISHOP_TABLE[idx] || 0;
+      }
+
+      const pieceTotal = baseVal + positionalVal;
+      if (piece.color === "w") {
+        totalScore += pieceTotal;
+      } else {
+        totalScore -= pieceTotal;
+      }
+    }
+  }
+
+  return totalScore;
+}
+
+/**
+ * Algorytm Minimax z obcinaniem Alpha-Beta
+ */
+function minimax(
+  game: Chess,
+  depth: number,
+  alpha: number,
+  beta: number,
+  isMaximizing: boolean,
+): number {
+  if (depth === 0 || game.isGameOver()) {
+    return evaluateStaticPosition(game);
+  }
+
+  const moves = game.moves({ verbose: true });
+  if (moves.length === 0) {
+    return evaluateStaticPosition(game);
+  }
+
+  // Sortowanie ruchów: bicia i szachy najpierw dla optymalizacji alfa-beta
+  moves.sort((a, b) => {
+    let scoreA = (a.captured ? 10 : 0) + (a.san.includes("+") ? 5 : 0);
+    let scoreB = (b.captured ? 10 : 0) + (b.san.includes("+") ? 5 : 0);
+    return scoreB - scoreA;
+  });
+
+  if (isMaximizing) {
+    let maxEval = -Infinity;
+    for (const m of moves) {
+      game.move(m);
+      const ev = minimax(game, depth - 1, alpha, beta, false);
+      game.undo();
+      maxEval = Math.max(maxEval, ev);
+      alpha = Math.max(alpha, ev);
+      if (beta <= alpha) break;
+    }
+    return maxEval;
+  } else {
+    let minEval = Infinity;
+    for (const m of moves) {
+      game.move(m);
+      const ev = minimax(game, depth - 1, alpha, beta, true);
+      game.undo();
+      minEval = Math.min(minEval, ev);
+      beta = Math.min(beta, ev);
+      if (beta <= alpha) break;
+    }
+    return minEval;
+  }
+}
+
+/**
+ * Zwraca najlepszy ruch dla bota na podstawie wybranego poziomu trudności
+ */
+export function findBestEngineMove(
+  game: Chess,
+  difficulty: "beginner" | "intermediate" | "master" | string = "intermediate",
+): Move | null {
+  const legalMoves = game.moves({ verbose: true });
+  if (!legalMoves.length) return null;
+
+  // 1. Beginner: głównie losowe ruchy, okazjonalnie proste bicia
+  if (difficulty === "beginner") {
+    const captures = legalMoves.filter((m) => m.captured);
+    if (captures.length > 0 && Math.random() < 0.35) {
+      return captures[Math.floor(Math.random() * captures.length)];
+    }
+    return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+  }
+
+  const isWhite = game.turn() === "w";
+
+  // 2. Intermediate: analiza 1-2 półruchy (prosta taktyka materiałowa + centrum)
+  if (difficulty === "intermediate") {
+    let bestMove = legalMoves[0];
+    let bestVal = isWhite ? -Infinity : Infinity;
+
+    for (const m of legalMoves) {
+      game.move(m);
+      const ev = evaluateStaticPosition(game) + (Math.random() * 12 - 6);
+      game.undo();
+
+      if (isWhite) {
+        if (ev > bestVal) {
+          bestVal = ev;
+          bestMove = m;
+        }
+      } else {
+        if (ev < bestVal) {
+          bestVal = ev;
+          bestMove = m;
+        }
+      }
+    }
+    return bestMove;
+  }
+
+  // 3. Master: Minimax z Alpha-Beta na głębokość 3 półruchów
+  let bestMove = legalMoves[0];
+  let bestVal = isWhite ? -Infinity : Infinity;
+  const searchDepth = 3;
+
+  for (const m of legalMoves) {
+    game.move(m);
+    const ev = minimax(game, searchDepth - 1, -Infinity, Infinity, !isWhite);
+    game.undo();
+
+    if (isWhite) {
+      if (ev > bestVal) {
+        bestVal = ev;
+        bestMove = m;
+      }
+    } else {
+      if (ev < bestVal) {
+        bestVal = ev;
+        bestMove = m;
+      }
+    }
+  }
+
+  return bestMove;
+}
 
 /**
  * Oblicza bilans materiału na szachownicy.
