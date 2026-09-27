@@ -188,10 +188,9 @@ export function VoiceController({
         />
         <Button
           type="submit"
-          variant="outline"
-          className="rounded-xl border-[#dce5d8] px-4 py-2.5 text-xs font-semibold hover:bg-stone-100 dark:border-[#2f3d33] dark:hover:bg-[#25332b] cursor-pointer"
+          className="rounded-xl border border-[#17201c] bg-[#17201c] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-[#2c3d33] hover:border-[#2c3d33] active:scale-[0.98] dark:border-[#2f3d33] dark:bg-[#202b25] dark:text-[#edf2ed] dark:hover:bg-[#283830] dark:hover:text-white cursor-pointer"
         >
-          <Send className="mr-1.5 size-3.5" />
+          <Send className="mr-1.5 size-3.5 text-white dark:text-[#edf2ed]" />
           <span>{labels.submitMoveText}</span>
         </Button>
       </form>
