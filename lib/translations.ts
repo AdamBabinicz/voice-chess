@@ -61,11 +61,18 @@ export interface TranslationSchema {
   undoBtn: string;
   listeningText: string;
   startVoiceText: string;
+  speakingMuted: string;
   inputPlaceholder: string;
   submitMoveText: string;
   unsupportedSpeech: string;
   speechError: string;
   unrecognizedMove: string;
+  illegalMoveMsg: string;
+  newGameIntroText: string;
+  undoTextMsg: string;
+  materialWhite: string;
+  materialBlack: string;
+  materialEqual: string;
 }
 
 export const translations: Record<Lang, TranslationSchema> = {
@@ -86,7 +93,7 @@ export const translations: Record<Lang, TranslationSchema> = {
     turnBlack: "Your turn · Black",
     coach: "Coach insight",
     defaultCoachText:
-      "Your knight is active on f3. The center is open — look for a safe way to castle.",
+      "Speak or make a move on the board. The coach will analyze your choice.",
     moves: "Moves",
     listen: "Listening for your move…",
     visible: "Board visible",
@@ -129,13 +136,20 @@ export const translations: Record<Lang, TranslationSchema> = {
     backTop: "Scroll to top",
     newGameBtn: "New game",
     undoBtn: "Undo",
-    listeningText: "Listening... Say a move like “e4”",
+    listeningText: "Listening... Say a move like “e4” or “castle”",
     startVoiceText: "Start voice input",
+    speakingMuted: "Coach speaking... (mic muted)",
     inputPlaceholder: "Type a move, e.g. e4, Nf3, O-O",
     submitMoveText: "Make move",
     unsupportedSpeech: "Speech recognition is not supported in this browser.",
     speechError: "Microphone access failed. Type a move below.",
     unrecognizedMove: "Unrecognized move",
+    illegalMoveMsg: "Illegal move. Please choose another square or piece.",
+    newGameIntroText: "Starting a fresh game! Speak your opening move.",
+    undoTextMsg: "Move undone. Choose another move.",
+    materialWhite: "White",
+    materialBlack: "Black",
+    materialEqual: "Equal (0)",
   },
   pl: {
     nav: ["Trener audio", "Taktyka", "Zagraj", "Jak to działa"],
@@ -198,12 +212,20 @@ export const translations: Record<Lang, TranslationSchema> = {
     backTop: "Wróć na górę",
     newGameBtn: "Nowa partia",
     undoBtn: "Cofnij",
-    listeningText: "Słucham... Wypowiedz ruch (np. „e4”, „skoczek f3”)",
+    listeningText:
+      "Słucham... Wypowiedz ruch (np. „e4”, „skoczek f3”, „roszada”)",
     startVoiceText: "Rozpocznij nasłuch głosu",
+    speakingMuted: "Lektor mówi... (mikrofon wyciszony)",
     inputPlaceholder: "Wpisz ruch, np. e4, Nf3, O-O",
     submitMoveText: "Wykonaj",
     unsupportedSpeech: "Przeglądarka nie obsługuje rozpoznawania mowy.",
     speechError: "Błąd mikrofonu lub brak zezwolenia. Wpisz ruch w polu.",
     unrecognizedMove: "Nierozpoznany ruch",
+    illegalMoveMsg: "To posunięcie jest niedozwolone w tej pozycji.",
+    newGameIntroText: "Rozpoczynamy nową partię! Wypowiedz swój ruch otwarcia.",
+    undoTextMsg: "Cofnięto ruch. Wybierz inne posunięcie.",
+    materialWhite: "Białe",
+    materialBlack: "Czarne",
+    materialEqual: "Równe (0)",
   },
 };

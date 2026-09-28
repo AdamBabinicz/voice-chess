@@ -137,6 +137,11 @@ export function VoiceController({
     setManualInput("");
   };
 
+  const speakingMuteLabel =
+    lang === "pl"
+      ? "Lektor mówi... (mikrofon wyciszony)"
+      : "Coach speaking... (mic muted)";
+
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-[#dfe5dc] bg-white p-4 shadow-sm dark:border-[#29332e] dark:bg-[#18201b] sm:flex-row sm:items-center">
       {speechSupported ? (
@@ -156,9 +161,7 @@ export function VoiceController({
             <>
               <MicOff className="size-4 animate-bounce" />
               <span>
-                {isSpeaking
-                  ? "Lektor mówi... (mikrofon wyciszony)"
-                  : labels.listeningText}
+                {isSpeaking ? speakingMuteLabel : labels.listeningText}
               </span>
             </>
           ) : (
@@ -201,25 +204,39 @@ export function VoiceController({
 function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
   const clean = text
     .toLowerCase()
-    .replace(/[.,!?;:]/g, "")
+    .replace(/[.,!?;:"'„”]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
-  // 1. Roszady
+  // 1. Roszady (obsługa słowna oraz wariantów 0-0 i O-O)
   if (
+    clean === "0-0-0" ||
+    clean === "000" ||
+    clean === "o-o-o" ||
+    clean === "ooo" ||
     clean.includes("długa roszada") ||
     clean.includes("dluga roszada") ||
     clean.includes("long castle") ||
-    clean.includes("queenside castle")
+    clean.includes("queenside castle") ||
+    clean.includes("queen side castle")
   ) {
     return "O-O-O";
   }
+
   if (
-    clean.includes("roszada") ||
+    clean === "0-0" ||
+    clean === "00" ||
+    clean === "o-o" ||
+    clean === "oo" ||
     clean.includes("krótka roszada") ||
     clean.includes("krotka roszada") ||
-    clean.includes("castle") ||
-    clean.includes("kingside castle")
+    clean.includes("roszada") ||
+    clean.includes("roszadę") ||
+    clean.includes("roszade") ||
+    clean.includes("kingside castle") ||
+    clean.includes("king side castle") ||
+    clean.includes("short castle") ||
+    clean.includes("castle")
   ) {
     return "O-O";
   }
@@ -238,40 +255,65 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     osiem: "8",
   };
 
+  // 3. Fonetyczne nazwy liter kolumn w języku polskim
+  const plLetters: Record<string, string> = {
+    a: "a",
+    be: "b",
+    ce: "c",
+    de: "d",
+    e: "e",
+    ef: "f",
+    gie: "g",
+    ha: "h",
+  };
+
   const words = clean.split(" ");
-  const normalizedWords = words.map((w) => plNumbers[w] || w);
+  const normalizedWords = words.map((w) => plNumbers[w] || plLetters[w] || w);
   const normalizedText = normalizedWords.join(" ");
 
-  // 3. Figury
+  // 4. Figury
   let piecePrefix = "";
   if (
     normalizedText.includes("skoczek") ||
+    normalizedText.includes("skoczka") ||
     normalizedText.includes("koń") ||
     normalizedText.includes("kon") ||
+    normalizedText.includes("konia") ||
     normalizedText.includes("knight")
   ) {
     piecePrefix = "N";
   } else if (
     normalizedText.includes("goniec") ||
+    normalizedText.includes("gońca") ||
+    normalizedText.includes("gonca") ||
     normalizedText.includes("bishop")
   ) {
     piecePrefix = "B";
   } else if (
     normalizedText.includes("wieża") ||
     normalizedText.includes("wieza") ||
+    normalizedText.includes("wieżę") ||
+    normalizedText.includes("wieze") ||
+    normalizedText.includes("wiezy") ||
+    normalizedText.includes("wieży") ||
     normalizedText.includes("rook")
   ) {
     piecePrefix = "R";
   } else if (
     normalizedText.includes("hetman") ||
+    normalizedText.includes("hetmana") ||
     normalizedText.includes("królowa") ||
     normalizedText.includes("krolowa") ||
+    normalizedText.includes("królową") ||
+    normalizedText.includes("krolowe") ||
     normalizedText.includes("queen")
   ) {
     piecePrefix = "Q";
   } else if (
     normalizedText.includes("król") ||
     normalizedText.includes("krol") ||
+    normalizedText.includes("króla") ||
+    normalizedText.includes("krola") ||
     normalizedText.includes("king")
   ) {
     piecePrefix = "K";
@@ -280,9 +322,12 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
   const isCapture =
     normalizedText.includes("bije") ||
     normalizedText.includes("zbija") ||
+    normalizedText.includes("zbij") ||
     normalizedText.includes("takes") ||
-    normalizedText.includes("bicia");
+    normalizedText.includes("bicia") ||
+    normalizedText.includes("bicie");
 
+  // Szukamy zapisu pola, np. "e4", "e 4", "f3", "c 6"
   const squareMatch = normalizedText.match(/\b([a-h])\s?([1-8])\b/);
   if (squareMatch) {
     const targetSquare = `${squareMatch[1]}${squareMatch[2]}`;
@@ -293,6 +338,7 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
         : `${piecePrefix}${targetSquare}`;
     }
 
+    // Bicie pionem, np. "e bije d5" -> "exd5"
     const fromColMatch = normalizedText.match(
       /\b([a-h])\s*(bije|zbija|takes|x)?\s*[a-h][1-8]\b/,
     );

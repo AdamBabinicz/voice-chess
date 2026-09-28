@@ -506,6 +506,82 @@ export function generateBlindfoldStatus(
 }
 
 /**
+ * Heurystycznie sprawdza, czy pole jest geometrycznie atakowane przez daną bierkę
+ */
+function isSquareAttackedByPiece(
+  from: Square,
+  to: Square,
+  pieceType: PieceSymbol,
+  pieceColor: "w" | "b",
+  board: ({ type: PieceSymbol; color: "w" | "b" } | null)[][],
+): boolean {
+  const fileFrom = from.charCodeAt(0) - 97;
+  const rankFrom = parseInt(from[1], 10) - 1;
+  const fileTo = to.charCodeAt(0) - 97;
+  const rankTo = parseInt(to[1], 10) - 1;
+
+  const dx = fileTo - fileFrom;
+  const dy = rankTo - rankFrom;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+
+  if (dx === 0 && dy === 0) return false;
+
+  // 1. Pion
+  if (pieceType === "p") {
+    const dir = pieceColor === "w" ? 1 : -1;
+    return dy === dir && absDx === 1;
+  }
+
+  // 2. Skoczek
+  if (pieceType === "n") {
+    return (absDx === 1 && absDy === 2) || (absDx === 2 && absDy === 1);
+  }
+
+  // 3. Król
+  if (pieceType === "k") {
+    return absDx <= 1 && absDy <= 1;
+  }
+
+  // 4. Goniec lub Hetman (przekątne)
+  if (pieceType === "b" || pieceType === "q") {
+    if (absDx === absDy) {
+      const stepX = dx > 0 ? 1 : -1;
+      const stepY = dy > 0 ? 1 : -1;
+      let currX = fileFrom + stepX;
+      let currY = rankFrom + stepY;
+      while (currX !== fileTo && currY !== rankTo) {
+        // board indices: board[7 - rank][file]
+        const p = board[7 - currY][currX];
+        if (p !== null) return false; // zablokowana linia
+        currX += stepX;
+        currY += stepY;
+      }
+      return true;
+    }
+  }
+
+  // 5. Wieża lub Hetman (linie proste)
+  if (pieceType === "r" || pieceType === "q") {
+    if (dx === 0 || dy === 0) {
+      const stepX = dx === 0 ? 0 : dx > 0 ? 1 : -1;
+      const stepY = dy === 0 ? 0 : dy > 0 ? 1 : -1;
+      let currX = fileFrom + stepX;
+      let currY = rankFrom + stepY;
+      while (currX !== fileTo || currY !== rankTo) {
+        const p = board[7 - currY][currX];
+        if (p !== null) return false; // zablokowana linia
+        currX += stepX;
+        currY += stepY;
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Główna funkcja analizy pedagogicznej trenera audio.
  */
 export function generateCoachInsight(
@@ -517,6 +593,23 @@ export function generateCoachInsight(
   const inCheck = game.inCheck();
   const isCheckmate = game.isCheckmate();
   const isDraw = game.isDraw();
+
+  const PIECE_NAMES_PL: Record<string, string> = {
+    p: "piona",
+    n: "skoczka",
+    b: "gońca",
+    r: "wieżę",
+    q: "hetmana",
+    k: "króla",
+  };
+  const PIECE_NAMES_EN: Record<string, string> = {
+    p: "pawn",
+    n: "knight",
+    b: "bishop",
+    r: "rook",
+    q: "queen",
+    k: "king",
+  };
 
   // 1. Mat lub Pat
   if (isCheckmate) {
@@ -549,7 +642,7 @@ export function generateCoachInsight(
   // 2. Szach
   if (inCheck) {
     if (isPlayerMove) {
-      const pl = `Szach! Dajesz szacha ruchem ${lastMove.san}. Zmuszasz rywala do reakcji i przejmujesz inicjatywę.`;
+      const pl = `Szach! Dajesz szacha ruchem ${lastMove.san}. Zmuszasz rywala do obrony i przejmujesz inicjatywę.`;
       const en = `Check! You deliver check with ${lastMove.san}, forcing a reaction and taking initiative.`;
       return {
         insight: lang === "pl" ? pl : en,
@@ -565,7 +658,113 @@ export function generateCoachInsight(
     }
   }
 
-  // 3. Roszada
+  // 3. Bicia materiału
+  if (lastMove.captured) {
+    const capNamePl = PIECE_NAMES_PL[lastMove.captured] || "figurę";
+    const capNameEn = PIECE_NAMES_EN[lastMove.captured] || "piece";
+
+    if (isPlayerMove) {
+      const pl = `Zbijasz ${capNamePl} na ${lastMove.to}! Zyskujesz przewagę materialną i otwierasz nowe linie natarcia.`;
+      const en = `Captured the ${capNameEn} on ${lastMove.to}! Gaining material and opening attack avenues.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    } else {
+      // Jeśli to król przeciwnika zbił figurę gracza (np. Kxd8)
+      if (lastMove.piece === "k") {
+        const pl = `Przeciwnik bije królem Twojego ${capNamePl} na ${lastMove.to}. Jego król jest odsłonięty w centrum — czas na kontratak!`;
+        const en = `Opponent's king captures your ${capNameEn} on ${lastMove.to}. Their king is exposed in the center — time to counterattack!`;
+        return {
+          insight: lang === "pl" ? pl : en,
+          audioText: lang === "pl" ? pl : en,
+        };
+      }
+
+      const pl = `Przeciwnik bije Twojego ${capNamePl} na ${lastMove.to}. Sprawdź, czy możesz odbić bierkę lub wywrzeć kontratak!`;
+      const en = `Opponent captures your ${capNameEn} on ${lastMove.to}. Look for a recapture or a counter-threat!`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  // 4. ALARMY TAKTYCZNE: Wykrywanie bezpośrednich zagrożeń po ruchu przeciwnika
+  if (!isPlayerMove) {
+    const board = game.board();
+    const playerColor = game.turn(); // po ruchu przeciwnika jest tura gracza
+
+    // Sprawdź, gdzie stoją cenne figury gracza (Hetman, Wieże)
+    let playerQueenSquare: Square | null = null;
+    const playerRookSquares: Square[] = [];
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (p && p.color === playerColor) {
+          const sq = `${String.fromCharCode(97 + c)}${8 - r}` as Square;
+          if (p.type === "q") playerQueenSquare = sq;
+          if (p.type === "r") playerRookSquares.push(sq);
+        }
+      }
+    }
+
+    // A. Czy ostatni ruch przeciwnika bezpośrednio atakuje Hetmana gracza?
+    if (
+      playerQueenSquare &&
+      isSquareAttackedByPiece(
+        lastMove.to,
+        playerQueenSquare,
+        lastMove.piece,
+        lastMove.color,
+        board,
+      )
+    ) {
+      const pl = `Uwaga! Ruch ${lastMove.san} bezpośrednio atakuje Twojego hetmana na ${playerQueenSquare}! Uciekaj hetmanem lub zneutralizuj zagrożenie.`;
+      const en = `Warning! Move ${lastMove.san} directly threatens your queen on ${playerQueenSquare}! Relocate your queen or counter the threat.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+
+    // B. Czy ostatni ruch przeciwnika bezpośrednio atakuje Wieżę gracza?
+    for (const rSq of playerRookSquares) {
+      if (
+        isSquareAttackedByPiece(
+          lastMove.to,
+          rSq,
+          lastMove.piece,
+          lastMove.color,
+          board,
+        )
+      ) {
+        const pl = `Ostrożnie! Ruch ${lastMove.san} zagraża Twojej wieży na ${rSq}. Zabezpiecz ją lub znajdź silniejsze przeciwuderzenie.`;
+        const en = `Careful! Move ${lastMove.san} attacks your rook on ${rSq}. Protect it or find a stronger counter-strike.`;
+        return {
+          insight: lang === "pl" ? pl : en,
+          audioText: lang === "pl" ? pl : en,
+        };
+      }
+    }
+
+    // C. Czy bierka przeciwnika stoi na polu, które gracz może natychmiast zbić za darmo (wisząca bierka)?
+    const playerLegalMoves = game.moves({ verbose: true });
+    const directCaptures = playerLegalMoves.filter((m) => m.to === lastMove.to);
+    if (directCaptures.length > 0 && lastMove.piece !== "p") {
+      const pieceNamePl = PIECE_NAMES_PL[lastMove.piece] || "figurę";
+      const pieceNameEn = PIECE_NAMES_EN[lastMove.piece] || "piece";
+      const pl = `Przeciwnik zagrał ${lastMove.san}, podstawiając ${pieceNamePl} na ${lastMove.to}! Sprawdź natychmiastowe bicie!`;
+      const en = `Opponent played ${lastMove.san}, leaving their ${pieceNameEn} vulnerable on ${lastMove.to}! Check for an immediate capture!`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  // 5. Roszada
   if (lastMove.san === "O-O" || lastMove.san === "O-O-O") {
     if (isPlayerMove) {
       const pl = `Roszada wykonana. Twój król chowa się za zwartym łańcuchem pionów, a wieża natychmiast włącza się do gry w centrum.`;
@@ -584,73 +783,53 @@ export function generateCoachInsight(
     }
   }
 
-  // 4. Bicia materiału
-  if (lastMove.captured) {
-    const pieceNamesPl: Record<string, string> = {
-      p: "piona",
-      n: "skoczka",
-      b: "gońca",
-      r: "wieżę",
-      q: "hetmana",
-    };
-    const pieceNamesEn: Record<string, string> = {
-      p: "pawn",
-      n: "knight",
-      b: "bishop",
-      r: "rook",
-      q: "queen",
-    };
-    const capNamePl = pieceNamesPl[lastMove.captured] || "figurę";
-    const capNameEn = pieceNamesEn[lastMove.captured] || "piece";
-
-    if (isPlayerMove) {
-      const pl = `Zbijasz ${capNamePl} na ${lastMove.to}! Zyskujesz przewagę materialną i otwierasz nowe linie natarcia.`;
-      const en = `Captured the ${capNameEn} on ${lastMove.to}! Gaining material and opening attack avenues.`;
-      return {
-        insight: lang === "pl" ? pl : en,
-        audioText: lang === "pl" ? pl : en,
-      };
-    } else {
-      const pl = `Przeciwnik bije Twojego ${capNamePl} na ${lastMove.to}. Sprawdź, czy możesz odbić bierkę lub wywrzeć kontratak!`;
-      const en = `Opponent captures your ${capNameEn} on ${lastMove.to}. Look for a recapture or a counter-threat!`;
-      return {
-        insight: lang === "pl" ? pl : en,
-        audioText: lang === "pl" ? pl : en,
-      };
-    }
-  }
-
-  // 5. Specyficzne debiuty i ruchy pozycyjne
+  // 6. Otwarcie partii (Debiut) - Poprawione perspektywy dla Gracza i Przeciwnika
   const moveNumber = Math.ceil(game.history().length / 2);
 
   if (moveNumber <= 4) {
     if (lastMove.san === "e4" || lastMove.san === "e5") {
-      const pl = `Klasyczne zajęcie centrum pionem ${lastMove.san}. Kontrolujesz kluczowe pola d5 i f5 oraz uwalniasz gońca i hetmana.`;
-      const en = `Classic central pawn push ${lastMove.san}. Controls key squares and opens lines for bishop and queen.`;
+      const pl = isPlayerMove
+        ? `Klasyczne zajęcie centrum pionem ${lastMove.san}. Kontrolujesz kluczowe pola d5 i f5 oraz uwalniasz gońca i hetmana.`
+        : `Przeciwnik zajmuje centrum ruchem ${lastMove.san}, otwierając przekątne dla swoich figur.`;
+      const en = isPlayerMove
+        ? `Classic central pawn push ${lastMove.san}. Controls key squares and opens lines for bishop and queen.`
+        : `Opponent stakes central space with ${lastMove.san}, freeing diagonals for their pieces.`;
       return {
         insight: lang === "pl" ? pl : en,
         audioText: lang === "pl" ? pl : en,
       };
     }
     if (lastMove.san === "d4" || lastMove.san === "d5") {
-      const pl = `Mocne posunięcie w centrum: ${lastMove.san}. Zapewnia stabilną przestrzeń i wsparcie dla lekkich figur.`;
-      const en = `Solid central stake with ${lastMove.san}. Provides space and foundation for minor pieces.`;
+      const pl = isPlayerMove
+        ? `Mocne posunięcie w centrum: ${lastMove.san}. Zapewnia stabilną przestrzeń i wsparcie dla lekkich figur.`
+        : `Przeciwnik odpowiada w centrum ${lastMove.san}, walcząc o przestrzeń i wsparcie figur.`;
+      const en = isPlayerMove
+        ? `Solid central stake with ${lastMove.san}. Provides space and foundation for minor pieces.`
+        : `Opponent responds centrally with ${lastMove.san}, contesting space.`;
       return {
         insight: lang === "pl" ? pl : en,
         audioText: lang === "pl" ? pl : en,
       };
     }
     if (lastMove.san.startsWith("N")) {
-      const pl = `Rozwój skoczka na ${lastMove.to}. Zgodnie ze złotą zasadą: skoczki przed gońcami, wzmacniasz kontrolę nad środkiem planszy.`;
-      const en = `Knight develops to ${lastMove.to}. Following the golden principle: knights before bishops, guarding the center.`;
+      const pl = isPlayerMove
+        ? `Rozwój skoczka na ${lastMove.to}. Zgodnie ze złotą zasadą: skoczki przed gońcami, wzmacniasz kontrolę nad środkiem planszy.`
+        : `Przeciwnik rozwija skoczka na ${lastMove.to}, wzmacniając nacisk na centrum planszy.`;
+      const en = isPlayerMove
+        ? `Knight develops to ${lastMove.to}. Following the golden principle: knights before bishops, guarding the center.`
+        : `Opponent develops knight to ${lastMove.to}, contesting central control.`;
       return {
         insight: lang === "pl" ? pl : en,
         audioText: lang === "pl" ? pl : en,
       };
     }
     if (lastMove.san.startsWith("B")) {
-      const pl = `Wyprowadzenie gońca na aktywną przekątną (${lastMove.to}). Przygotowujesz roszadę i wywierasz presję.`;
-      const en = `Bishop developed to active diagonal (${lastMove.to}). Preparing kingside castle and exerting pressure.`;
+      const pl = isPlayerMove
+        ? `Wyprowadzenie gońca na aktywną przekątną (${lastMove.to}). Przygotowujesz roszadę i wywierasz presję.`
+        : `Przeciwnik wyprowadza gońca na ${lastMove.to}, celując w Twoje pozycje.`;
+      const en = isPlayerMove
+        ? `Bishop developed to active diagonal (${lastMove.to}). Preparing kingside castle and exerting pressure.`
+        : `Opponent develops bishop to ${lastMove.to}, targeting your camp.`;
       return {
         insight: lang === "pl" ? pl : en,
         audioText: lang === "pl" ? pl : en,
@@ -658,7 +837,20 @@ export function generateCoachInsight(
     }
   }
 
-  // 6. Gra środkowa: Geometria figur
+  // 7. Gra środkowa: Ruchy poszczególnych figur
+  if (lastMove.piece === "k") {
+    const pl = isPlayerMove
+      ? `Ruch królem na ${lastMove.to}. Pamiętaj o bezpieczeństwie monarchy, gdy na planszy są jeszcze ciężkie figury.`
+      : `Przeciwnik ucieka królem na ${lastMove.to}. Król stracił prawo do roszady i jest podatny na atak!`;
+    const en = isPlayerMove
+      ? `King moves to ${lastMove.to}. Ensure king safety while major pieces remain on board.`
+      : `Opponent shifts king to ${lastMove.to}. The king lost castling rights and invites attack!`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
   if (lastMove.piece === "n") {
     const pl = isPlayerMove
       ? `Twój skoczek skacze na ${lastMove.to}. To świetna placówka, skąd kontroluje kluczowe pola w obozie rywala.`
@@ -698,13 +890,26 @@ export function generateCoachInsight(
     };
   }
 
-  // Domyślny logiczny komentarz pozycyjny
+  if (lastMove.piece === "p") {
+    const pl = isPlayerMove
+      ? `Pchnięcie piona ${lastMove.san}. Zyskujesz przestrzeń na planszy.`
+      : `Przeciwnik popycha piona ${lastMove.san}. Zwróć uwagę, jakie linie i pola się otworzyły.`;
+    const en = isPlayerMove
+      ? `Pawn push ${lastMove.san}. Claiming more territory.`
+      : `Opponent pushes pawn ${lastMove.san}. Notice the newly opened files and diagonals.`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
+  // Domyślny dynamiczny komentarz pozycyjny
   const pl = isPlayerMove
     ? `Ruch ${lastMove.san}. Zmieniasz układ sił na ${lastMove.to}. Przeciwnik analizuje odpowiedź.`
-    : `Przeciwnik odpowiada ${lastMove.san}. Przyjrzyj się, jakie pole osłabił ten ruch i gdzie jest Twoja szansa.`;
+    : `Przeciwnik odpowiada ${lastMove.san}. Przeanalizuj układ bierek i wybierz najdokładniejszy plan.`;
   const en = isPlayerMove
     ? `Move ${lastMove.san}. Reshaping the board at ${lastMove.to}. Opponent contemplates a response.`
-    : `Opponent plays ${lastMove.san}. Notice which square was left behind and where your opportunity lies.`;
+    : `Opponent plays ${lastMove.san}. Assess the piece coordination and pursue your tactical plan.`;
 
   return {
     insight: lang === "pl" ? pl : en,

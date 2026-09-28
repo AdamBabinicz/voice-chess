@@ -74,6 +74,12 @@ export default function Page() {
   });
 
   const lastValidCoachInsightRef = useRef<string>("");
+  const pendingBotInsightRef = useRef<{
+    insight: string;
+    audioText: string;
+  } | null>(null);
+  const isPlayingPlayerAudioRef = useRef(false);
+
   const t = translations[lang];
 
   useEffect(() => {
@@ -182,6 +188,7 @@ export default function Page() {
 
   /**
    * Silnik odpowiedzi bota szachowego z obsługą poziomów Beginner / Intermediate / Master
+   * Wykonuje ruch fizycznie na planszy, a komentarz trenera odtwarza po zakończeniu mowy o ruchu gracza
    */
   const executeComputerResponse = () => {
     if (gameInstance.isGameOver()) return;
@@ -213,9 +220,15 @@ export default function Page() {
         lang,
         false,
       );
-      setCoachInsight(replyAnalysis.insight);
-      lastValidCoachInsightRef.current = replyAnalysis.insight;
-      announce(replyAnalysis.audioText);
+
+      // Jeśli lektor wciąż mówi o ruchu gracza, kolejka poczeka z komentarzem bota
+      if (isPlayingPlayerAudioRef.current) {
+        pendingBotInsightRef.current = replyAnalysis;
+      } else {
+        setCoachInsight(replyAnalysis.insight);
+        lastValidCoachInsightRef.current = replyAnalysis.insight;
+        announce(replyAnalysis.audioText);
+      }
     } catch {
       // Ignoruj błąd
     }
@@ -285,15 +298,36 @@ export default function Page() {
         return;
       }
 
-      const analysis = generateCoachInsight(gameInstance, result, lang, true);
-      setCoachInsight(analysis.insight);
-      lastValidCoachInsightRef.current = analysis.insight;
+      // 1. Analiza ruchu gracza
+      const playerAnalysis = generateCoachInsight(
+        gameInstance,
+        result,
+        lang,
+        true,
+      );
+      setCoachInsight(playerAnalysis.insight);
+      lastValidCoachInsightRef.current = playerAnalysis.insight;
 
-      announce(analysis.audioText, () => {
-        window.setTimeout(() => {
-          executeComputerResponse();
-        }, 500);
+      // Oznaczamy, że lektor mówi o ruchu gracza
+      isPlayingPlayerAudioRef.current = true;
+      pendingBotInsightRef.current = null;
+
+      announce(playerAnalysis.audioText, () => {
+        isPlayingPlayerAudioRef.current = false;
+        // Gdy skończy mówić o ruchu gracza, jeśli bot zdążył przygotować odpowiedź, odtwórz ją teraz!
+        if (pendingBotInsightRef.current) {
+          const botAnalysis = pendingBotInsightRef.current;
+          pendingBotInsightRef.current = null;
+          setCoachInsight(botAnalysis.insight);
+          lastValidCoachInsightRef.current = botAnalysis.insight;
+          announce(botAnalysis.audioText);
+        }
       });
+
+      // Wykonaj ruch bota z małym opóźnieniem naturalnym
+      window.setTimeout(() => {
+        executeComputerResponse();
+      }, 700);
     } catch {
       // Dźwięk błędu przy próbie nielegalnego ruchu
       playIllegalSound();
@@ -651,10 +685,12 @@ export default function Page() {
                       )}
                     >
                       {material.score > 0
-                        ? `Białe ${material.display}`
+                        ? `${lang === "pl" ? "Białe" : "White"} ${material.display}`
                         : material.score < 0
-                          ? `Czarne ${material.display}`
-                          : "Równe (0)"}
+                          ? `${lang === "pl" ? "Czarne" : "Black"} ${material.display}`
+                          : lang === "pl"
+                            ? "Równe (0)"
+                            : "Equal (0)"}
                     </span>
                   </div>
                   <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#d8e2d4] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e]">

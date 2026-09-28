@@ -18,6 +18,7 @@ interface ChessBoardViewProps {
   selectedSquare: number | null;
   onSquareClick: (index: number) => void;
   blindfold: boolean;
+  lang?: "en" | "pl";
   labels: {
     blind: string;
     peek: string;
@@ -31,6 +32,7 @@ export function ChessBoardView({
   selectedSquare,
   onSquareClick,
   blindfold,
+  lang = "pl",
   labels,
 }: ChessBoardViewProps) {
   const [isPeeking, setIsPeeking] = useState(false);
@@ -42,12 +44,61 @@ export function ChessBoardView({
 
   const isHidden = blindfold && !isPeeking;
 
+  const getSquareAriaLabel = (
+    squareName: string,
+    piece: BoardPiece | null,
+  ): string => {
+    if (!piece) {
+      return lang === "pl"
+        ? `Pole ${squareName}, puste`
+        : `Square ${squareName}, empty`;
+    }
+
+    const colorName =
+      lang === "pl"
+        ? piece.color === "w"
+          ? "biały"
+          : "czarny"
+        : piece.color === "w"
+          ? "white"
+          : "black";
+
+    const pieceTypeNamesPl: Record<PieceSymbol, string> = {
+      p: "pion",
+      n: "skoczek",
+      b: "goniec",
+      r: "wieża",
+      q: "hetman",
+      k: "król",
+    };
+
+    const pieceTypeNamesEn: Record<PieceSymbol, string> = {
+      p: "pawn",
+      n: "knight",
+      b: "bishop",
+      r: "rook",
+      q: "queen",
+      k: "king",
+    };
+
+    const pieceName =
+      lang === "pl"
+        ? pieceTypeNamesPl[piece.type] || piece.type
+        : pieceTypeNamesEn[piece.type] || piece.type;
+
+    return lang === "pl"
+      ? `Pole ${squareName}, ${colorName} ${pieceName}`
+      : `Square ${squareName}, ${colorName} ${pieceName}`;
+  };
+
   return (
     <div className="w-full">
       <div
         className="relative aspect-square w-full overflow-hidden rounded-2xl border border-[#cad7c5] dark:border-[#334238] shadow-inner bg-[#eef4e8]"
         role="region"
-        aria-label="Interactive chess board"
+        aria-label={
+          lang === "pl" ? "Interaktywna szachownica" : "Interactive chess board"
+        }
       >
         <div className="grid grid-cols-8 grid-rows-8 h-full w-full">
           {board.flatMap((row, rowIndex) =>
@@ -62,7 +113,7 @@ export function ChessBoardView({
                   key={i}
                   type="button"
                   onClick={() => onSquareClick(i)}
-                  aria-label={`Pole ${squareName} ${piece ? `${piece.color === "w" ? "biały" : "czarny"} ${piece.type}` : "puste"}`}
+                  aria-label={getSquareAriaLabel(squareName, piece)}
                   className={cn(
                     "relative flex h-full w-full aspect-square items-center justify-center overflow-hidden p-0.5 select-none focus:outline-none focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-[#a4d847] focus-visible:ring-inset transition-colors cursor-pointer",
                     isLight ? "bg-[#eef4e8]" : "bg-[#a8c283]",

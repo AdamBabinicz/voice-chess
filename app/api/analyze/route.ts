@@ -48,7 +48,11 @@ function evaluatePosition(game: Chess) {
   const isCheckmate = game.isCheckmate();
   const isDraw = game.isDraw();
   const moves = game.moves({ verbose: true });
-  const captureMoves = moves.filter((m) => m.isCapture());
+
+  // Bezpieczne sprawdzanie bić odporne na wersje chess.js
+  const captureMoves = moves.filter((m) =>
+    Boolean(m.captured || (m.flags && m.flags.includes("c"))),
+  );
 
   return {
     materialDiff,
@@ -68,7 +72,12 @@ export async function POST(req: Request) {
 
     if (!fen || typeof fen !== "string") {
       return NextResponse.json(
-        { error: "Brakujący lub nieprawidłowy FEN" },
+        {
+          error:
+            lang === "pl"
+              ? "Brakujący lub nieprawidłowy FEN"
+              : "Missing or invalid FEN",
+        },
         { status: 400 },
       );
     }
@@ -79,7 +88,12 @@ export async function POST(req: Request) {
       game = new Chess(fen);
     } catch {
       return NextResponse.json(
-        { error: "Nieprawidłowy zapis FEN pozycji" },
+        {
+          error:
+            lang === "pl"
+              ? "Nieprawidłowy zapis FEN pozycji"
+              : "Invalid FEN notation format",
+        },
         { status: 400 },
       );
     }
@@ -130,7 +144,7 @@ Do not use asterisks (*), markdown, or bullet points — this will be read by br
 
         const selectedPrompt = lang === "pl" ? promptPl : promptEn;
 
-        // Prawidłowy oficjalny model: gemini-2.0-flash
+        // Oficjalny model Gemini API
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
           {
@@ -152,7 +166,7 @@ Do not use asterisks (*), markdown, or bullet points — this will be read by br
             data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
           if (rawText) {
-            const cleanText = rawText.replace(/[*_#`]/g, "").trim();
+            const cleanText = rawText.replace(/[*_#`"]/g, "").trim();
             return NextResponse.json({
               source: "gemini-ai",
               insight: cleanText,
@@ -172,7 +186,6 @@ Do not use asterisks (*), markdown, or bullet points — this will be read by br
     }
 
     // 2. DYNAMICZNY ZAAWANSOWANY SILNIK HEURYSTYCZNY (Niezawodny Fallback)
-    // Gdy brak klucza API lub błąd sieci, generuje autentyczną analizę z FEN!
     const isWhite = pos.turn === "white";
     const turnPl = isWhite ? "Białe" : "Czarne";
     const turnEn = isWhite ? "White" : "Black";
