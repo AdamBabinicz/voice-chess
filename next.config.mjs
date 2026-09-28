@@ -39,8 +39,13 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Kierowanie do nowoczesnych silników JS eliminuje 13 KB niepotrzebnych polyfilli zgłaszanych w audycie
       config.target = ["web", "es2022"];
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        // Zastąpienie wewnętrznego polyfillera Next.js pustym modułem (likwiduje 13 KB Legacy JS w PageSpeed)
+        "next/dist/build/polyfills/polyfill-module": false,
+        "@next/polyfill-module": false,
+      };
     }
     return config;
   },
