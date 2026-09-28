@@ -22,10 +22,11 @@ import {
   MaterialScore,
   TACTICAL_PUZZLES,
 } from "@/lib/chess-coach-engine";
+import { stockfishService } from "@/lib/stockfish-service";
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
-// Leniwe ładowanie wyłącznie modali (nie blokują startu ani pierwszego widoku)
+// Leniwe ładowanie wyłącznie modali (nie blokują startu ani krytycznego renderowania LCP)
 const SettingsModal = dynamic(
   () => import("@/components/settings-modal").then((mod) => mod.SettingsModal),
   { ssr: false },
@@ -36,7 +37,7 @@ const LegalModal = dynamic(
   { ssr: false },
 );
 
-// Bezpieczne, dynamiczne odtwarzanie efektów dźwiękowych (nie blokuje ładowania strony)
+// Bezpieczne, dynamiczne odtwarzanie efektów dźwiękowych
 const playSound = async (
   type: "move" | "capture" | "check" | "victory" | "illegal",
 ) => {
@@ -48,7 +49,7 @@ const playSound = async (
     else if (type === "victory") audio.playVictorySound();
     else if (type === "illegal") audio.playIllegalSound();
   } catch {
-    // Ignoruj błąd odtwarzania
+    // Ignoruj błąd odtwarzania audio w przeglądarkach blokujących autoplay
   }
 };
 
@@ -140,7 +141,7 @@ export default function Page() {
           };
 
           const handleFinish = () => {
-            // Bezpieczny bufor 600ms po zakończeniu mowy na wygaszenie echa w pomieszczeniu
+            // Bezpieczny bufor 600ms po zakończeniu mowy na wygaszenie echa w mikrofonie
             speakCooldownTimeoutRef.current = window.setTimeout(() => {
               isSpeakingRef.current = false;
               setIsSpeaking(false);
@@ -189,11 +190,32 @@ export default function Page() {
     announce(statusText);
   };
 
+  // Głęboka analiza: w pierwszej kolejności korzysta z lokalnego Stockfisha (0 opóźnienia sieciowego)
   const handleDeepAiAnalysis = async () => {
     if (isAnalyzingAi) return;
     setIsAnalyzingAi(true);
 
     try {
+      // 1. Arcymistrzowska analiza Stockfisha prosto z Web Workera
+      const stockfishEval = await stockfishService.evaluatePosition(
+        gameInstance.fen(),
+        12,
+      );
+
+      if (stockfishEval) {
+        const coachMsg = stockfishService.generateEvaluationCoachText(
+          stockfishEval,
+          gameInstance.turn() === "w",
+          lang,
+        );
+        setCoachInsight(coachMsg.insight);
+        lastValidCoachInsightRef.current = coachMsg.insight;
+        announce(coachMsg.audioText);
+        setIsAnalyzingAi(false);
+        return;
+      }
+
+      // 2. Fallback do endpointu API, jeśli dostępny
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,14 +241,41 @@ export default function Page() {
     }
   };
 
-  const executeComputerResponse = () => {
+  const executeComputerResponse = async () => {
     if (gameInstance.isGameOver() || isResigned) return;
 
     try {
-      const bestMove = findBestEngineMove(gameInstance, difficulty);
-      if (!bestMove) return;
+      let chosenMove:
+        | string
+        | { from: string; to: string; promotion?: string }
+        | null = null;
 
-      const reply = gameInstance.move(bestMove);
+      // Na poziomie "master" pytamy Stockfisha w tle o optymalne posunięcie
+      if (difficulty === "master") {
+        try {
+          const sfEval = await stockfishService.evaluatePosition(
+            gameInstance.fen(),
+            10,
+          );
+          if (sfEval && sfEval.from && sfEval.to) {
+            chosenMove = {
+              from: sfEval.from,
+              to: sfEval.to,
+              promotion: sfEval.promotion || "q",
+            };
+          }
+        } catch {
+          // W razie niedostępności workera przejdź do szybkiego silnika lokalnego
+        }
+      }
+
+      if (!chosenMove) {
+        chosenMove = findBestEngineMove(gameInstance, difficulty);
+      }
+
+      if (!chosenMove) return;
+
+      const reply = gameInstance.move(chosenMove as any);
       setBoard([...gameInstance.board()]);
       setTurn(gameInstance.turn());
       setMoves([...gameInstance.history()]);
@@ -234,6 +283,8 @@ export default function Page() {
 
       if (gameInstance.isCheckmate()) {
         playSound("victory");
+      } else if (gameInstance.isStalemate() || gameInstance.isDraw()) {
+        playSound("move");
       } else if (gameInstance.inCheck()) {
         playSound("check");
       } else if (reply.captured) {
@@ -258,7 +309,7 @@ export default function Page() {
   };
 
   const applyMove = (notation: string | { from: string; to: string }) => {
-    // Ignoruj wejścia, jeśli trener aktualnie mówi lub głośnik wybrzmiewa
+    // Ignoruj wejścia, jeśli trener aktualnie mówi
     if (isSpeakingRef.current) return;
 
     if (typeof notation === "string" && notation === "RESIGN") {
@@ -299,8 +350,12 @@ export default function Page() {
         throw new Error("Invalid move");
       }
 
+      const isGameOverAfterMove = gameInstance.isGameOver();
+
       if (gameInstance.isCheckmate()) {
         playSound("victory");
+      } else if (gameInstance.isStalemate() || gameInstance.isDraw()) {
+        playSound("move");
       } else if (gameInstance.inCheck()) {
         playSound("check");
       } else if (result.captured) {
@@ -342,6 +397,12 @@ export default function Page() {
       );
       setCoachInsight(playerAnalysis.insight);
       lastValidCoachInsightRef.current = playerAnalysis.insight;
+
+      // Jeśli ruch gracza zakończył partię (mat, pat, remis), NIE planujemy ruchu bota!
+      if (isGameOverAfterMove) {
+        announce(playerAnalysis.audioText);
+        return;
+      }
 
       if (!coachMuted) {
         announce(playerAnalysis.audioText, () => {
@@ -497,6 +558,23 @@ export default function Page() {
 
   const isGameOverState = isResigned || gameInstance.isGameOver();
 
+  // Precyzyjny status nagłówka szachownicy: odróżnia szach-mat od pata i remisu
+  const getGameStatusLabel = () => {
+    if (isResigned) {
+      return lang === "pl" ? "Poddana" : "Resigned";
+    }
+    if (gameInstance.isCheckmate()) {
+      return lang === "pl" ? "Szach i mat!" : "Checkmate!";
+    }
+    if (gameInstance.isStalemate()) {
+      return lang === "pl" ? "Pat · Remis" : "Stalemate · Draw";
+    }
+    if (gameInstance.isDraw()) {
+      return lang === "pl" ? "Remis" : "Draw";
+    }
+    return turn === "w" ? t.turnWhite : t.turnBlack;
+  };
+
   return (
     <div
       className={cn(
@@ -594,7 +672,7 @@ export default function Page() {
                   `· ${TACTICAL_PUZZLES[activePuzzle].title[lang]}`}
               </span>
               <span className="text-[#3c4a41] dark:text-[#cbd5e1] font-semibold">
-                {turn === "w" ? t.turnWhite : t.turnBlack}
+                {getGameStatusLabel()}
               </span>
             </div>
 

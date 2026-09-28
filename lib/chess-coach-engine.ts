@@ -229,6 +229,78 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
 ];
 
 /**
+ * Wczesne wykrywanie bezpośredniego ryzyka pata (Gdy samotny król ma tylko 1-2 ruchy)
+ */
+export function checkStalemateDanger(
+  game: Chess,
+  lang: "en" | "pl",
+): string | null {
+  if (game.isGameOver() || game.inCheck()) return null;
+
+  const legalMoves = game.moves();
+  const board = game.board();
+
+  // Sprawdzamy liczbę bierek strony broniącej się
+  const defendingColor = game.turn();
+  let defendingPiecesCount = 0;
+
+  for (const row of board) {
+    for (const p of row) {
+      if (p && p.color === defendingColor) {
+        defendingPiecesCount++;
+      }
+    }
+  }
+
+  // Jeśli rywal ma tylko króla (lub króla i piona) i ma maksymalnie 2 ruchy
+  if (
+    defendingPiecesCount <= 2 &&
+    legalMoves.length > 0 &&
+    legalMoves.length <= 2
+  ) {
+    if (lang === "pl") {
+      return `Uwaga na pata! Król przeciwnika ma tylko ${legalMoves.length === 1 ? "1 wolne pole" : "2 pola ucieczki"}. Kolejne posunięcia wykonuj wyłącznie z szachem, aby uniknąć przypadkowego remisu!`;
+    } else {
+      return `Warning: stalemate risk! Opponent's king has only ${legalMoves.length === 1 ? "1 legal move" : "2 escape squares"}. Play forcing checks to avoid an accidental draw!`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Tłumacz profesjonalnych ocen Stockfisha na mowę trenera
+ */
+export function translateStockfishEvaluation(
+  evalData: { scoreCp?: number; mateIn?: number; bestMoveSan?: string },
+  lang: "en" | "pl",
+): string {
+  if (evalData.mateIn !== undefined) {
+    const moves = Math.abs(evalData.mateIn);
+    if (evalData.mateIn > 0) {
+      return lang === "pl"
+        ? `Forsowny mat w ${moves} ${moves === 1 ? "ruchu" : "ruchach"}! Utrzymuj maksymalną presję.`
+        : `Forced mate in ${moves} ${moves === 1 ? "move" : "moves"}! Maintain full pressure.`;
+    } else {
+      return lang === "pl"
+        ? `Uwaga! Grozi Ci mat w ${moves} ${moves === 1 ? "ruchu" : "ruchach"}. Zabezpiecz króla!`
+        : `Danger! Opponent threatens mate in ${moves} ${moves === 1 ? "move" : "moves"}. Defend the king!`;
+    }
+  }
+
+  if (evalData.scoreCp !== undefined) {
+    const pts = (evalData.scoreCp / 100).toFixed(1);
+    if (evalData.scoreCp > 300) {
+      return lang === "pl"
+        ? `Znakomita pozycja! Twoja przewaga wynosi aż +${pts} punktu. Nie dopuść do pata.`
+        : `Winning advantage (+${pts} pts). Watch out for stalemate!`;
+    }
+  }
+
+  return "";
+}
+
+/**
  * Heurystyka końcówki (Mop-up evaluation)
  */
 function evaluateEndgameMopUp(
@@ -696,7 +768,16 @@ export function generateCoachInsight(
     }
   }
 
-  // 5. Zbicie figury
+  // 5. Wczesne ostrzeżenie przed patem (gdy król rywala ma 1-2 ruchy)
+  const stalemateWarning = checkStalemateDanger(game, lang);
+  if (stalemateWarning && isPlayerMove) {
+    return {
+      insight: stalemateWarning,
+      audioText: stalemateWarning,
+    };
+  }
+
+  // 6. Zbicie figury
   if (lastMove.captured) {
     const capNamePl = PIECE_NAMES_PL[lastMove.captured] || "figurę";
     const capNameEn = PIECE_NAMES_EN[lastMove.captured] || "piece";
@@ -727,7 +808,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 6. Ruch przeciwnika – precyzyjna analiza zagrożeń dla bierek gracza
+  // 7. Ruch przeciwnika – precyzyjna analiza zagrożeń dla bierek gracza
   if (!isPlayerMove) {
     const opponentColor = lastMove.color; // 'w' | 'b'
     const playerColor = opponentColor === "w" ? "b" : "w";
@@ -789,7 +870,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 7. Roszada
+  // 8. Roszada
   if (lastMove.san === "O-O" || lastMove.san === "O-O-O") {
     if (isPlayerMove) {
       const pl = `Roszada wykonana. Twój król chowa się za zwartym łańcuchem pionów, a wieża natychmiast włącza się do gry w centrum.`;
@@ -808,7 +889,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 8. Otwarcie (ruch 1–4)
+  // 9. Otwarcie (ruch 1–4)
   const moveNumber = Math.ceil(game.history().length / 2);
 
   if (moveNumber <= 4) {
@@ -862,7 +943,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 9. Figury ogólne
+  // 10. Figury ogólne
   if (lastMove.piece === "k") {
     const pl = isPlayerMove
       ? `Ruch królem na ${lastMove.to}. Pamiętaj o bezpieczeństwie monarchy, gdy na planszy są jeszcze ciężkie figury.`
