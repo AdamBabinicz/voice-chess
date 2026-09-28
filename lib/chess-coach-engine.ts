@@ -229,10 +229,7 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
 ];
 
 /**
- * Heurystyka końcówki (Mop-up evaluation):
- * Kiedy jedna strona ma miażdżącą przewagę, nagradzamy:
- * 1. Zbliżanie wygrywającego króla do króla przegrywającego
- * 2. Wypychanie przegrywającego króla na krawędź planszy (1., 8. linia lub a/h kolumny)
+ * Heurystyka końcówki (Mop-up evaluation)
  */
 function evaluateEndgameMopUp(
   board: ({ type: PieceSymbol; color: "w" | "b" } | null)[][],
@@ -254,7 +251,6 @@ function evaluateEndgameMopUp(
   const losingKing = winningColor === "w" ? blackKingPos : whiteKingPos;
   const winningKing = winningColor === "w" ? whiteKingPos : blackKingPos;
 
-  // Odległość przegrywającego króla od centrum (im dalej od centrum, tym lepiej dla wygrywającego)
   const losingKingDstFromCenterFile = Math.max(
     3 - losingKing.c,
     losingKing.c - 4,
@@ -266,7 +262,6 @@ function evaluateEndgameMopUp(
   const losingKingCenterDst =
     losingKingDstFromCenterFile + losingKingDstFromCenterRank;
 
-  // Odległość między królami (im bliżej, tym łatwiej zamatować)
   const distBetweenKings =
     Math.abs(winningKing.c - losingKing.c) +
     Math.abs(winningKing.r - losingKing.r);
@@ -280,7 +275,6 @@ function evaluateEndgameMopUp(
  */
 function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
   if (game.isCheckmate()) {
-    // Mat musi uwzględniać głębokość! Im szybszy mat, tym wyższa wartość.
     return game.turn() === "w"
       ? -30000 + plyDepth * 100
       : 30000 - plyDepth * 100;
@@ -323,7 +317,6 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
     }
   }
 
-  // Aktywuj mop-up evaluation w końcówce przy wyraźnej przewadze materialnej
   if (whiteMat > blackMat + 400) {
     totalScore += evaluateEndgameMopUp(board, "w");
   } else if (blackMat > whiteMat + 400) {
@@ -353,7 +346,6 @@ function minimax(
     return evaluateStaticPosition(game, ply);
   }
 
-  // Sortowanie ruchów: promocje, szachy i bicia najpierw dla optymalizacji
   moves.sort((a, b) => {
     let scoreA =
       (a.promotion ? 20 : 0) +
@@ -393,7 +385,6 @@ function minimax(
 
 /**
  * Zwraca najlepszy ruch dla bota z bezwzględnym priorytetem zadania mata (Mate-in-1/2)
- * oraz unikaniem trzykrotnego powtórzenia pozycji (remis).
  */
 export function findBestEngineMove(
   game: Chess,
@@ -402,17 +393,15 @@ export function findBestEngineMove(
   const legalMoves = game.moves({ verbose: true });
   if (!legalMoves.length) return null;
 
-  // KROK 0: ZAWSZE sprawdź, czy bot ma natychmiastowego mata w 1 ruchu!
   for (const m of legalMoves) {
     game.move(m);
     if (game.isCheckmate()) {
       game.undo();
-      return m; // Bezwzględny priorytet: natychmiast kończ partię matem!
+      return m;
     }
     game.undo();
   }
 
-  // 1. Beginner: głównie proste ruchy, ale nie odrzuca natychmiastowych zbić
   if (difficulty === "beginner") {
     const captures = legalMoves.filter((m) => m.captured);
     if (captures.length > 0 && Math.random() < 0.45) {
@@ -423,7 +412,6 @@ export function findBestEngineMove(
 
   const isWhite = game.turn() === "w";
 
-  // 2. Intermediate: sprawdza 2 półruchy + karze powtórzenia pozycji
   if (difficulty === "intermediate") {
     let bestMove = legalMoves[0];
     let bestVal = isWhite ? -Infinity : Infinity;
@@ -432,7 +420,6 @@ export function findBestEngineMove(
       game.move(m);
       let ev = evaluateStaticPosition(game, 1);
 
-      // Kara za remis przy przewadze
       if (game.isDraw()) {
         ev = isWhite ? -5000 : 5000;
       }
@@ -454,7 +441,6 @@ export function findBestEngineMove(
     return bestMove;
   }
 
-  // 3. Master: Minimax 3-ply z dyskontowaniem mata i zacieśnianiem końcówki
   let bestMove = legalMoves[0];
   let bestVal = isWhite ? -Infinity : Infinity;
   const searchDepth = 3;
@@ -463,7 +449,6 @@ export function findBestEngineMove(
     game.move(m);
     let ev = minimax(game, searchDepth - 1, 1, -Infinity, Infinity, !isWhite);
 
-    // Jeśli pozycja po tym ruchu prowadzi do remisu (np. trzykrotne powtórzenie), a mamy przewagę:
     if (game.isDraw()) {
       ev = isWhite ? -8000 : 8000;
     }
@@ -593,73 +578,6 @@ export function generateBlindfoldStatus(
   }
 }
 
-function isSquareAttackedByPiece(
-  from: Square,
-  to: Square,
-  pieceType: PieceSymbol,
-  pieceColor: "w" | "b",
-  board: ({ type: PieceSymbol; color: "w" | "b" } | null)[][],
-): boolean {
-  const fileFrom = from.charCodeAt(0) - 97;
-  const rankFrom = parseInt(from[1], 10) - 1;
-  const fileTo = to.charCodeAt(0) - 97;
-  const rankTo = parseInt(to[1], 10) - 1;
-
-  const dx = fileTo - fileFrom;
-  const dy = rankTo - rankFrom;
-  const absDx = Math.abs(dx);
-  const absDy = Math.abs(dy);
-
-  if (dx === 0 && dy === 0) return false;
-
-  if (pieceType === "p") {
-    const dir = pieceColor === "w" ? 1 : -1;
-    return dy === dir && absDx === 1;
-  }
-
-  if (pieceType === "n") {
-    return (absDx === 1 && absDy === 2) || (absDx === 2 && absDy === 1);
-  }
-
-  if (pieceType === "k") {
-    return absDx <= 1 && absDy <= 1;
-  }
-
-  if (pieceType === "b" || pieceType === "q") {
-    if (absDx === absDy) {
-      const stepX = dx > 0 ? 1 : -1;
-      const stepY = dy > 0 ? 1 : -1;
-      let currX = fileFrom + stepX;
-      let currY = rankFrom + stepY;
-      while (currX !== fileTo && currY !== rankTo) {
-        const p = board[7 - currY][currX];
-        if (p !== null) return false;
-        currX += stepX;
-        currY += stepY;
-      }
-      return true;
-    }
-  }
-
-  if (pieceType === "r" || pieceType === "q") {
-    if (dx === 0 || dy === 0) {
-      const stepX = dx === 0 ? 0 : dx > 0 ? 1 : -1;
-      const stepY = dy === 0 ? 0 : dy > 0 ? 1 : -1;
-      let currX = fileFrom + stepX;
-      let currY = rankFrom + stepY;
-      while (currX !== fileTo || currY !== rankTo) {
-        const p = board[7 - currY][currX];
-        if (p !== null) return false;
-        currX += stepX;
-        currY += stepY;
-      }
-      return true;
-    }
-  }
-
-  return false;
-}
-
 /**
  * Główna funkcja analizy pedagogicznej trenera audio.
  */
@@ -690,6 +608,7 @@ export function generateCoachInsight(
     k: "king",
   };
 
+  // 1. Mat
   if (isCheckmate) {
     if (isPlayerMove) {
       const pl = `Szach i mat! Wspaniałe zwieńczenie partii. Przeciwnik nie ma ucieczki.`;
@@ -708,6 +627,7 @@ export function generateCoachInsight(
     }
   }
 
+  // 2. Remis
   if (isDraw) {
     const pl = `Partia zakończona remisem (pat lub brak materiału). Dobra, solidna walka.`;
     const en = `Game drawn (stalemate or insufficient material). Solid fight.`;
@@ -717,6 +637,7 @@ export function generateCoachInsight(
     };
   }
 
+  // 3. Szach (bezwzględny priorytet)
   if (inCheck) {
     if (isPlayerMove) {
       const pl = `Szach! Dajesz szacha ruchem ${lastMove.san}. Zmuszasz rywala do obrony i przejmujesz inicjatywę.`;
@@ -735,6 +656,7 @@ export function generateCoachInsight(
     }
   }
 
+  // 4. Zbicie figury
   if (lastMove.captured) {
     const capNamePl = PIECE_NAMES_PL[lastMove.captured] || "figurę";
     const capNameEn = PIECE_NAMES_EN[lastMove.captured] || "piece";
@@ -765,61 +687,54 @@ export function generateCoachInsight(
     }
   }
 
+  // 5. Ruch przeciwnika – precyzyjna analiza zagrożeń dla bierek gracza
   if (!isPlayerMove) {
-    const board = game.board();
-    const playerColor = game.turn();
+    const opponentColor = lastMove.color; // 'w' | 'b'
+    const playerColor = opponentColor === "w" ? "b" : "w";
 
-    let playerQueenSquare: Square | null = null;
-    const playerRookSquares: Square[] = [];
+    // Sprawdzamy stan szachownicy i zbieramy bierki gracza z ich RZECZYWISTYMI polami
+    const board = game.board();
+    let threatenedQueenSquare: Square | null = null;
+    let threatenedRookSquare: Square | null = null;
 
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
         const p = board[r][c];
         if (p && p.color === playerColor) {
           const sq = `${String.fromCharCode(97 + c)}${8 - r}` as Square;
-          if (p.type === "q") playerQueenSquare = sq;
-          if (p.type === "r") playerRookSquares.push(sq);
+
+          // Wykorzystujemy natywną metodę silnika szachowego do weryfikacji ataku
+          const isAttacked = game.isAttacked(sq, opponentColor);
+          if (isAttacked) {
+            if (p.type === "q" && !threatenedQueenSquare) {
+              threatenedQueenSquare = sq;
+            } else if (p.type === "r" && !threatenedRookSquare) {
+              threatenedRookSquare = sq;
+            }
+          }
         }
       }
     }
 
-    if (
-      playerQueenSquare &&
-      isSquareAttackedByPiece(
-        lastMove.to,
-        playerQueenSquare,
-        lastMove.piece,
-        lastMove.color,
-        board,
-      )
-    ) {
-      const pl = `Uwaga! Ruch ${lastMove.san} bezpośrednio atakuje Twojego hetmana na ${playerQueenSquare}! Uciekaj hetmanem lub zneutralizuj zagrożenie.`;
-      const en = `Warning! Move ${lastMove.san} directly threatens your queen on ${playerQueenSquare}! Relocate your queen or counter the threat.`;
+    if (threatenedQueenSquare) {
+      const pl = `Uwaga! Ruch ${lastMove.san} bezpośrednio zagraża Twojemu hetmanowi na ${threatenedQueenSquare}! Uciekaj hetmanem lub zneutralizuj zagrożenie.`;
+      const en = `Warning! Move ${lastMove.san} directly threatens your queen on ${threatenedQueenSquare}! Relocate your queen or counter the threat.`;
       return {
         insight: lang === "pl" ? pl : en,
         audioText: lang === "pl" ? pl : en,
       };
     }
 
-    for (const rSq of playerRookSquares) {
-      if (
-        isSquareAttackedByPiece(
-          lastMove.to,
-          rSq,
-          lastMove.piece,
-          lastMove.color,
-          board,
-        )
-      ) {
-        const pl = `Ostrożnie! Ruch ${lastMove.san} zagraża Twojej wieży na ${rSq}. Zabezpiecz ją lub znajdź silniejsze przeciwuderzenie.`;
-        const en = `Careful! Move ${lastMove.san} attacks your rook on ${rSq}. Protect it or find a stronger counter-strike.`;
-        return {
-          insight: lang === "pl" ? pl : en,
-          audioText: lang === "pl" ? pl : en,
-        };
-      }
+    if (threatenedRookSquare) {
+      const pl = `Ostrożnie! Ruch ${lastMove.san} zagraża Twojej wieży na ${threatenedRookSquare}. Zabezpiecz ją lub znajdź silniejsze przeciwuderzenie.`;
+      const en = `Careful! Move ${lastMove.san} attacks your rook on ${threatenedRookSquare}. Protect it or find a stronger counter-strike.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
     }
 
+    // Czy przeciwnik podstawił figurę pod bicie przez gracza?
     const playerLegalMoves = game.moves({ verbose: true });
     const directCaptures = playerLegalMoves.filter((m) => m.to === lastMove.to);
     if (directCaptures.length > 0 && lastMove.piece !== "p") {
@@ -834,6 +749,7 @@ export function generateCoachInsight(
     }
   }
 
+  // 6. Roszada
   if (lastMove.san === "O-O" || lastMove.san === "O-O-O") {
     if (isPlayerMove) {
       const pl = `Roszada wykonana. Twój król chowa się za zwartym łańcuchem pionów, a wieża natychmiast włącza się do gry w centrum.`;
@@ -852,6 +768,7 @@ export function generateCoachInsight(
     }
   }
 
+  // 7. Otwarcie (ruch 1–4)
   const moveNumber = Math.ceil(game.history().length / 2);
 
   if (moveNumber <= 4) {
@@ -905,6 +822,7 @@ export function generateCoachInsight(
     }
   }
 
+  // 8. Figury ogólne
   if (lastMove.piece === "k") {
     const pl = isPlayerMove
       ? `Ruch królem na ${lastMove.to}. Pamiętaj o bezpieczeństwie monarchy, gdy na planszy są jeszcze ciężkie figury.`
