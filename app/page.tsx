@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import dynamic from "next/dynamic";
 import { ChevronRight, EyeOff, Headphones, Play } from "lucide-react";
 import { Chess, Square } from "chess.js";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,6 @@ import { CoachPanel } from "@/components/coach-panel";
 import { VoiceController } from "@/components/voice-controller";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { CookieConsent } from "@/components/cookie-consent";
-import { TacticsSection } from "@/components/tactics-section";
-import { SettingsModal } from "@/components/settings-modal";
-import { LegalModal } from "@/components/legal-modal";
 import {
   calculateMaterialBalance,
   evaluateTacticalPuzzle,
@@ -32,6 +29,28 @@ import {
 } from "@/lib/audio-effects";
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
+
+// Optymalizacja TBT / Chunks: Leniwe ładowanie komponentów spoza widoku (below-the-fold i modale)
+const TacticsSection = dynamic(
+  () =>
+    import("@/components/tactics-section").then((mod) => mod.TacticsSection),
+  { ssr: false },
+);
+
+const SettingsModal = dynamic(
+  () => import("@/components/settings-modal").then((mod) => mod.SettingsModal),
+  { ssr: false },
+);
+
+const LegalModal = dynamic(
+  () => import("@/components/legal-modal").then((mod) => mod.LegalModal),
+  { ssr: false },
+);
+
+const CookieConsent = dynamic(
+  () => import("@/components/cookie-consent").then((mod) => mod.CookieConsent),
+  { ssr: false },
+);
 
 type LegalType = "privacy" | "terms" | null;
 
@@ -609,7 +628,7 @@ export default function Page() {
           />
         </div>
 
-        {/* Sekcja łamigłówek taktycznych */}
+        {/* Sekcja łamigłówek taktycznych (ładowana dynamicznie) */}
         <TacticsSection
           lang={lang}
           activePuzzle={activePuzzle}
@@ -656,7 +675,7 @@ export default function Page() {
         onOpenCookies={() => setCookies(true)}
       />
 
-      {/* Ciasteczka RODO & Przycisk pływający 🍪 */}
+      {/* Ciasteczka RODO (ładowane dynamicznie) */}
       <CookieConsent
         isOpen={cookies}
         onOpen={() => setCookies(true)}
@@ -672,50 +691,54 @@ export default function Page() {
         }
       />
 
-      {/* Modal ustawień */}
-      <SettingsModal
-        isOpen={settings}
-        onClose={() => setSettings(false)}
-        lang={lang}
-        setLang={setLang}
-        blind={blind}
-        setBlind={setBlind}
-        coachMuted={coachMuted}
-        setCoachMuted={setCoachMuted}
-        speed={speed}
-        setSpeed={setSpeed}
-        difficulty={difficulty}
-        setDifficulty={setDifficulty}
-        voiceMode={voiceMode}
-        setVoiceMode={setVoiceMode}
-        labels={{
-          title: t.settings,
-          language: t.language,
-          blind: t.blind,
-          voiceSpeed: t.voiceSpeed,
-          difficulty: t.difficulty,
-          beginner: t.beginner,
-          intermediate: t.intermediate,
-          master: t.master,
-          voiceInput: t.voiceInput,
-          continuous: t.continuous,
-          push: t.push,
-          coachVoiceActive: t.coachVoiceActive,
-          done: t.done,
-          close: t.close,
-        }}
-      />
+      {/* Modal ustawień (ładowany dynamicznie) */}
+      {settings && (
+        <SettingsModal
+          isOpen={settings}
+          onClose={() => setSettings(false)}
+          lang={lang}
+          setLang={setLang}
+          blind={blind}
+          setBlind={setBlind}
+          coachMuted={coachMuted}
+          setCoachMuted={setCoachMuted}
+          speed={speed}
+          setSpeed={setSpeed}
+          difficulty={difficulty}
+          setDifficulty={setDifficulty}
+          voiceMode={voiceMode}
+          setVoiceMode={setVoiceMode}
+          labels={{
+            title: t.settings,
+            language: t.language,
+            blind: t.blind,
+            voiceSpeed: t.voiceSpeed,
+            difficulty: t.difficulty,
+            beginner: t.beginner,
+            intermediate: t.intermediate,
+            master: t.master,
+            voiceInput: t.voiceInput,
+            continuous: t.continuous,
+            push: t.push,
+            coachVoiceActive: t.coachVoiceActive,
+            done: t.done,
+            close: t.close,
+          }}
+        />
+      )}
 
-      {/* Modal prawny */}
-      <LegalModal
-        type={legal}
-        onClose={() => setLegal(null)}
-        labels={{
-          privacyTitle: t.privacy,
-          termsTitle: t.terms,
-          close: t.close,
-        }}
-      />
+      {/* Modal prawny (ładowany dynamicznie) */}
+      {legal !== null && (
+        <LegalModal
+          type={legal}
+          onClose={() => setLegal(null)}
+          labels={{
+            privacyTitle: t.privacy,
+            termsTitle: t.terms,
+            close: t.close,
+          }}
+        />
+      )}
     </div>
   );
 }
