@@ -157,12 +157,6 @@ export default function RootLayout({
           crossOrigin=""
         />
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-        <link
-          rel="preconnect"
-          href="https://www.google-analytics.com"
-          crossOrigin=""
-        />
-        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
       </head>
       <body
         suppressHydrationWarning
@@ -178,7 +172,7 @@ export default function RootLayout({
           />
         </noscript>
 
-        {/* 1. Domyślny stan zgód Google Consent Mode v2 (błyskawiczny, lekki inline) */}
+        {/* 1. Domyślny stan zgód Google Consent Mode v2 */}
         <Script
           id="gtm-consent-default"
           strategy="beforeInteractive"
@@ -197,17 +191,33 @@ export default function RootLayout({
           }}
         />
 
-        {/* 2. Główny kontener Google Tag Manager - opóźniony do lazyOnload (nie blokuje LCP/FCP) */}
+        {/* 2. Inteligentny loader GTM (odpala przy pierwszej interakcji lub po 3.5s) */}
         <Script
-          id="gtm-loader"
+          id="gtm-smart-loader"
           strategy="lazyOnload"
           dangerouslySetInnerHTML={{
             __html: `
-              (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','${GTM_ID}');
+              (function() {
+                var loaded = false;
+                function loadGTM() {
+                  if (loaded) return;
+                  loaded = true;
+                  ['scroll', 'mousemove', 'touchstart', 'keydown'].forEach(function(e) {
+                    window.removeEventListener(e, loadGTM, { passive: true });
+                  });
+                  window.dataLayer = window.dataLayer || [];
+                  window.dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
+                  var f = document.getElementsByTagName('script')[0],
+                      j = document.createElement('script');
+                  j.async = true;
+                  j.src = 'https://www.googletagmanager.com/gtm.js?id=${GTM_ID}';
+                  f.parentNode.insertBefore(j, f);
+                }
+                ['scroll', 'mousemove', 'touchstart', 'keydown'].forEach(function(e) {
+                  window.addEventListener(e, loadGTM, { passive: true, once: true });
+                });
+                setTimeout(loadGTM, 3500);
+              })();
             `,
           }}
         />
