@@ -121,13 +121,14 @@ export default function RootLayout({
         jobTitle: "Software Engineer & Creator",
       },
       {
-        "@type": ["WebApplication", "SoftwareApplication", "SportsApplication"],
+        "@type": ["WebApplication", "SoftwareApplication"],
         "@id": `${siteUrl}/#app`,
         name: "ChessTactics Audio Coach",
         alternateName: "Głosowy Trener Szachowy",
         url: siteUrl,
         description: siteDescription,
-        applicationCategory: "GameApplication, EducationalApplication",
+        applicationCategory:
+          "GameApplication, SportsApplication, EducationalApplication",
         operatingSystem: "All modern browsers with Web Speech API support",
         inLanguage: ["pl", "en"],
         author: {
