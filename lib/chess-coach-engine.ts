@@ -46,7 +46,7 @@ const CENTIPAWN_VALUES: Record<PieceSymbol, number> = {
   k: 20000,
 };
 
-// Pozycyjne tabele wartości pól (Piece-Square Tables) dla poziomu mistrzowskiego
+// Pozycyjne tabele wartości pól (Piece-Square Tables)
 const PAWN_TABLE = [
   0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30,
   20, 10, 10, 5, 5, 10, 25, 25, 10, 5, 5, 0, 0, 0, 20, 20, 0, 0, 0, 5, -5, -10,
@@ -67,9 +67,6 @@ const BISHOP_TABLE = [
   -10, -10, -10, -10, -10, -20,
 ];
 
-/**
- * Baza sprawdzonych łamigłówek taktycznych z precyzyjną oceną wygrywających ruchów.
- */
 export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
   {
     id: 0,
@@ -232,17 +229,69 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
 ];
 
 /**
+ * Heurystyka końcówki (Mop-up evaluation):
+ * Kiedy jedna strona ma miażdżącą przewagę, nagradzamy:
+ * 1. Zbliżanie wygrywającego króla do króla przegrywającego
+ * 2. Wypychanie przegrywającego króla na krawędź planszy (1., 8. linia lub a/h kolumny)
+ */
+function evaluateEndgameMopUp(
+  board: ({ type: PieceSymbol; color: "w" | "b" } | null)[][],
+  winningColor: "w" | "b",
+): number {
+  let whiteKingPos = { r: 0, c: 0 };
+  let blackKingPos = { r: 0, c: 0 };
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (p && p.type === "k") {
+        if (p.color === "w") whiteKingPos = { r, c };
+        else blackKingPos = { r, c };
+      }
+    }
+  }
+
+  const losingKing = winningColor === "w" ? blackKingPos : whiteKingPos;
+  const winningKing = winningColor === "w" ? whiteKingPos : blackKingPos;
+
+  // Odległość przegrywającego króla od centrum (im dalej od centrum, tym lepiej dla wygrywającego)
+  const losingKingDstFromCenterFile = Math.max(
+    3 - losingKing.c,
+    losingKing.c - 4,
+  );
+  const losingKingDstFromCenterRank = Math.max(
+    3 - losingKing.r,
+    losingKing.r - 4,
+  );
+  const losingKingCenterDst =
+    losingKingDstFromCenterFile + losingKingDstFromCenterRank;
+
+  // Odległość między królami (im bliżej, tym łatwiej zamatować)
+  const distBetweenKings =
+    Math.abs(winningKing.c - losingKing.c) +
+    Math.abs(winningKing.r - losingKing.r);
+
+  const mopUpScore = losingKingCenterDst * 25 + (14 - distBetweenKings) * 15;
+  return winningColor === "w" ? mopUpScore : -mopUpScore;
+}
+
+/**
  * Oblicza statyczną ocenę pozycji z perspektywy białych (w centypionach)
  */
-function evaluateStaticPosition(game: Chess): number {
+function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
   if (game.isCheckmate()) {
-    return game.turn() === "w" ? -30000 : 30000;
+    // Mat musi uwzględniać głębokość! Im szybszy mat, tym wyższa wartość.
+    return game.turn() === "w"
+      ? -30000 + plyDepth * 100
+      : 30000 - plyDepth * 100;
   }
   if (game.isDraw()) {
     return 0;
   }
 
   let totalScore = 0;
+  let whiteMat = 0;
+  let blackMat = 0;
   const board = game.board();
 
   for (let r = 0; r < 8; r++) {
@@ -266,38 +315,54 @@ function evaluateStaticPosition(game: Chess): number {
       const pieceTotal = baseVal + positionalVal;
       if (piece.color === "w") {
         totalScore += pieceTotal;
+        if (piece.type !== "k") whiteMat += baseVal;
       } else {
         totalScore -= pieceTotal;
+        if (piece.type !== "k") blackMat += baseVal;
       }
     }
+  }
+
+  // Aktywuj mop-up evaluation w końcówce przy wyraźnej przewadze materialnej
+  if (whiteMat > blackMat + 400) {
+    totalScore += evaluateEndgameMopUp(board, "w");
+  } else if (blackMat > whiteMat + 400) {
+    totalScore += evaluateEndgameMopUp(board, "b");
   }
 
   return totalScore;
 }
 
 /**
- * Algorytm Minimax z obcinaniem Alpha-Beta
+ * Algorytm Minimax z obcinaniem Alpha-Beta i dyskontowaniem głębokości mata
  */
 function minimax(
   game: Chess,
   depth: number,
+  ply: number,
   alpha: number,
   beta: number,
   isMaximizing: boolean,
 ): number {
   if (depth === 0 || game.isGameOver()) {
-    return evaluateStaticPosition(game);
+    return evaluateStaticPosition(game, ply);
   }
 
   const moves = game.moves({ verbose: true });
   if (moves.length === 0) {
-    return evaluateStaticPosition(game);
+    return evaluateStaticPosition(game, ply);
   }
 
-  // Sortowanie ruchów: bicia i szachy najpierw dla optymalizacji alfa-beta
+  // Sortowanie ruchów: promocje, szachy i bicia najpierw dla optymalizacji
   moves.sort((a, b) => {
-    let scoreA = (a.captured ? 10 : 0) + (a.san.includes("+") ? 5 : 0);
-    let scoreB = (b.captured ? 10 : 0) + (b.san.includes("+") ? 5 : 0);
+    let scoreA =
+      (a.promotion ? 20 : 0) +
+      (a.captured ? 10 : 0) +
+      (a.san.includes("+") ? 6 : 0);
+    let scoreB =
+      (b.promotion ? 20 : 0) +
+      (b.captured ? 10 : 0) +
+      (b.san.includes("+") ? 6 : 0);
     return scoreB - scoreA;
   });
 
@@ -305,7 +370,7 @@ function minimax(
     let maxEval = -Infinity;
     for (const m of moves) {
       game.move(m);
-      const ev = minimax(game, depth - 1, alpha, beta, false);
+      const ev = minimax(game, depth - 1, ply + 1, alpha, beta, false);
       game.undo();
       maxEval = Math.max(maxEval, ev);
       alpha = Math.max(alpha, ev);
@@ -316,7 +381,7 @@ function minimax(
     let minEval = Infinity;
     for (const m of moves) {
       game.move(m);
-      const ev = minimax(game, depth - 1, alpha, beta, true);
+      const ev = minimax(game, depth - 1, ply + 1, alpha, beta, true);
       game.undo();
       minEval = Math.min(minEval, ev);
       beta = Math.min(beta, ev);
@@ -327,7 +392,8 @@ function minimax(
 }
 
 /**
- * Zwraca najlepszy ruch dla bota na podstawie wybranego poziomu trudności
+ * Zwraca najlepszy ruch dla bota z bezwzględnym priorytetem zadania mata (Mate-in-1/2)
+ * oraz unikaniem trzykrotnego powtórzenia pozycji (remis).
  */
 export function findBestEngineMove(
   game: Chess,
@@ -336,10 +402,20 @@ export function findBestEngineMove(
   const legalMoves = game.moves({ verbose: true });
   if (!legalMoves.length) return null;
 
-  // 1. Beginner: głównie losowe ruchy, okazjonalnie proste bicia
+  // KROK 0: ZAWSZE sprawdź, czy bot ma natychmiastowego mata w 1 ruchu!
+  for (const m of legalMoves) {
+    game.move(m);
+    if (game.isCheckmate()) {
+      game.undo();
+      return m; // Bezwzględny priorytet: natychmiast kończ partię matem!
+    }
+    game.undo();
+  }
+
+  // 1. Beginner: głównie proste ruchy, ale nie odrzuca natychmiastowych zbić
   if (difficulty === "beginner") {
     const captures = legalMoves.filter((m) => m.captured);
-    if (captures.length > 0 && Math.random() < 0.35) {
+    if (captures.length > 0 && Math.random() < 0.45) {
       return captures[Math.floor(Math.random() * captures.length)];
     }
     return legalMoves[Math.floor(Math.random() * legalMoves.length)];
@@ -347,14 +423,20 @@ export function findBestEngineMove(
 
   const isWhite = game.turn() === "w";
 
-  // 2. Intermediate: analiza 1-2 półruchy (prosta taktyka materiałowa + centrum)
+  // 2. Intermediate: sprawdza 2 półruchy + karze powtórzenia pozycji
   if (difficulty === "intermediate") {
     let bestMove = legalMoves[0];
     let bestVal = isWhite ? -Infinity : Infinity;
 
     for (const m of legalMoves) {
       game.move(m);
-      const ev = evaluateStaticPosition(game) + (Math.random() * 12 - 6);
+      let ev = evaluateStaticPosition(game, 1);
+
+      // Kara za remis przy przewadze
+      if (game.isDraw()) {
+        ev = isWhite ? -5000 : 5000;
+      }
+
       game.undo();
 
       if (isWhite) {
@@ -372,14 +454,20 @@ export function findBestEngineMove(
     return bestMove;
   }
 
-  // 3. Master: Minimax z Alpha-Beta na głębokość 3 półruchów
+  // 3. Master: Minimax 3-ply z dyskontowaniem mata i zacieśnianiem końcówki
   let bestMove = legalMoves[0];
   let bestVal = isWhite ? -Infinity : Infinity;
   const searchDepth = 3;
 
   for (const m of legalMoves) {
     game.move(m);
-    const ev = minimax(game, searchDepth - 1, -Infinity, Infinity, !isWhite);
+    let ev = minimax(game, searchDepth - 1, 1, -Infinity, Infinity, !isWhite);
+
+    // Jeśli pozycja po tym ruchu prowadzi do remisu (np. trzykrotne powtórzenie), a mamy przewagę:
+    if (game.isDraw()) {
+      ev = isWhite ? -8000 : 8000;
+    }
+
     game.undo();
 
     if (isWhite) {
@@ -505,9 +593,6 @@ export function generateBlindfoldStatus(
   }
 }
 
-/**
- * Heurystycznie sprawdza, czy pole jest geometrycznie atakowane przez daną bierkę
- */
 function isSquareAttackedByPiece(
   from: Square,
   to: Square,
@@ -527,23 +612,19 @@ function isSquareAttackedByPiece(
 
   if (dx === 0 && dy === 0) return false;
 
-  // 1. Pion
   if (pieceType === "p") {
     const dir = pieceColor === "w" ? 1 : -1;
     return dy === dir && absDx === 1;
   }
 
-  // 2. Skoczek
   if (pieceType === "n") {
     return (absDx === 1 && absDy === 2) || (absDx === 2 && absDy === 1);
   }
 
-  // 3. Król
   if (pieceType === "k") {
     return absDx <= 1 && absDy <= 1;
   }
 
-  // 4. Goniec lub Hetman (przekątne)
   if (pieceType === "b" || pieceType === "q") {
     if (absDx === absDy) {
       const stepX = dx > 0 ? 1 : -1;
@@ -551,9 +632,8 @@ function isSquareAttackedByPiece(
       let currX = fileFrom + stepX;
       let currY = rankFrom + stepY;
       while (currX !== fileTo && currY !== rankTo) {
-        // board indices: board[7 - rank][file]
         const p = board[7 - currY][currX];
-        if (p !== null) return false; // zablokowana linia
+        if (p !== null) return false;
         currX += stepX;
         currY += stepY;
       }
@@ -561,7 +641,6 @@ function isSquareAttackedByPiece(
     }
   }
 
-  // 5. Wieża lub Hetman (linie proste)
   if (pieceType === "r" || pieceType === "q") {
     if (dx === 0 || dy === 0) {
       const stepX = dx === 0 ? 0 : dx > 0 ? 1 : -1;
@@ -570,7 +649,7 @@ function isSquareAttackedByPiece(
       let currY = rankFrom + stepY;
       while (currX !== fileTo || currY !== rankTo) {
         const p = board[7 - currY][currX];
-        if (p !== null) return false; // zablokowana linia
+        if (p !== null) return false;
         currX += stepX;
         currY += stepY;
       }
@@ -611,7 +690,6 @@ export function generateCoachInsight(
     k: "king",
   };
 
-  // 1. Mat lub Pat
   if (isCheckmate) {
     if (isPlayerMove) {
       const pl = `Szach i mat! Wspaniałe zwieńczenie partii. Przeciwnik nie ma ucieczki.`;
@@ -639,7 +717,6 @@ export function generateCoachInsight(
     };
   }
 
-  // 2. Szach
   if (inCheck) {
     if (isPlayerMove) {
       const pl = `Szach! Dajesz szacha ruchem ${lastMove.san}. Zmuszasz rywala do obrony i przejmujesz inicjatywę.`;
@@ -658,7 +735,6 @@ export function generateCoachInsight(
     }
   }
 
-  // 3. Bicia materiału
   if (lastMove.captured) {
     const capNamePl = PIECE_NAMES_PL[lastMove.captured] || "figurę";
     const capNameEn = PIECE_NAMES_EN[lastMove.captured] || "piece";
@@ -671,7 +747,6 @@ export function generateCoachInsight(
         audioText: lang === "pl" ? pl : en,
       };
     } else {
-      // Jeśli to król przeciwnika zbił figurę gracza (np. Kxd8)
       if (lastMove.piece === "k") {
         const pl = `Przeciwnik bije królem Twojego ${capNamePl} na ${lastMove.to}. Jego król jest odsłonięty w centrum — czas na kontratak!`;
         const en = `Opponent's king captures your ${capNameEn} on ${lastMove.to}. Their king is exposed in the center — time to counterattack!`;
@@ -690,12 +765,10 @@ export function generateCoachInsight(
     }
   }
 
-  // 4. ALARMY TAKTYCZNE: Wykrywanie bezpośrednich zagrożeń po ruchu przeciwnika
   if (!isPlayerMove) {
     const board = game.board();
-    const playerColor = game.turn(); // po ruchu przeciwnika jest tura gracza
+    const playerColor = game.turn();
 
-    // Sprawdź, gdzie stoją cenne figury gracza (Hetman, Wieże)
     let playerQueenSquare: Square | null = null;
     const playerRookSquares: Square[] = [];
 
@@ -710,7 +783,6 @@ export function generateCoachInsight(
       }
     }
 
-    // A. Czy ostatni ruch przeciwnika bezpośrednio atakuje Hetmana gracza?
     if (
       playerQueenSquare &&
       isSquareAttackedByPiece(
@@ -729,7 +801,6 @@ export function generateCoachInsight(
       };
     }
 
-    // B. Czy ostatni ruch przeciwnika bezpośrednio atakuje Wieżę gracza?
     for (const rSq of playerRookSquares) {
       if (
         isSquareAttackedByPiece(
@@ -749,7 +820,6 @@ export function generateCoachInsight(
       }
     }
 
-    // C. Czy bierka przeciwnika stoi na polu, które gracz może natychmiast zbić za darmo (wisząca bierka)?
     const playerLegalMoves = game.moves({ verbose: true });
     const directCaptures = playerLegalMoves.filter((m) => m.to === lastMove.to);
     if (directCaptures.length > 0 && lastMove.piece !== "p") {
@@ -764,7 +834,6 @@ export function generateCoachInsight(
     }
   }
 
-  // 5. Roszada
   if (lastMove.san === "O-O" || lastMove.san === "O-O-O") {
     if (isPlayerMove) {
       const pl = `Roszada wykonana. Twój król chowa się za zwartym łańcuchem pionów, a wieża natychmiast włącza się do gry w centrum.`;
@@ -783,7 +852,6 @@ export function generateCoachInsight(
     }
   }
 
-  // 6. Otwarcie partii (Debiut) - Poprawione perspektywy dla Gracza i Przeciwnika
   const moveNumber = Math.ceil(game.history().length / 2);
 
   if (moveNumber <= 4) {
@@ -837,7 +905,6 @@ export function generateCoachInsight(
     }
   }
 
-  // 7. Gra środkowa: Ruchy poszczególnych figur
   if (lastMove.piece === "k") {
     const pl = isPlayerMove
       ? `Ruch królem na ${lastMove.to}. Pamiętaj o bezpieczeństwie monarchy, gdy na planszy są jeszcze ciężkie figury.`
@@ -903,7 +970,6 @@ export function generateCoachInsight(
     };
   }
 
-  // Domyślny dynamiczny komentarz pozycyjny
   const pl = isPlayerMove
     ? `Ruch ${lastMove.san}. Zmieniasz układ sił na ${lastMove.to}. Przeciwnik analizuje odpowiedź.`
     : `Przeciwnik odpowiada ${lastMove.san}. Przeanalizuj układ bierek i wybierz najdokładniejszy plan.`;
