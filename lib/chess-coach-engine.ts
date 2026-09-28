@@ -589,6 +589,9 @@ export function generateCoachInsight(
 ): CoachAnalysis {
   const inCheck = game.inCheck();
   const isCheckmate = game.isCheckmate();
+  const isStalemate = game.isStalemate();
+  const isThreefold = game.isThreefoldRepetition();
+  const isInsufficient = game.isInsufficientMaterial();
   const isDraw = game.isDraw();
 
   const PIECE_NAMES_PL: Record<string, string> = {
@@ -608,7 +611,26 @@ export function generateCoachInsight(
     k: "king",
   };
 
-  // 1. Mat
+  // 1. Pat (Stalemate) – bezwzględny priorytet, aby nie mylić go z matem!
+  if (isStalemate) {
+    if (isPlayerMove) {
+      const pl = `Pat! Niewiarygodny zwrot akcji — partia kończy się remisem. Król przeciwnika nie ma żadnego ruchu, ale nie jest w szachu. Wypuszczasz wygraną z rąk! Pamiętaj: przy dużej przewadze zawsze zostawiaj rywalowi pole ucieczki lub dawaj szacha.`;
+      const en = `Stalemate! Game ends in a draw. Opponent's king has no legal moves, but is not in check. A dominant win slipped away! Always leave an escape square or give check when heavily ahead.`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    } else {
+      const pl = `Pat! Twój król nie ma żadnego dozwolonego ruchu i nie jest szachowany. Niesamowity ratunek i remis w beznadziejnej pozycji!`;
+      const en = `Stalemate! Your king has no legal moves and is not in check. A miraculous save and draw!`;
+      return {
+        insight: lang === "pl" ? pl : en,
+        audioText: lang === "pl" ? pl : en,
+      };
+    }
+  }
+
+  // 2. Szach i mat (wyłącznie gdy król jest rzeczywiście w szachu)
   if (isCheckmate) {
     if (isPlayerMove) {
       const pl = `Szach i mat! Wspaniałe zwieńczenie partii. Przeciwnik nie ma ucieczki.`;
@@ -627,17 +649,35 @@ export function generateCoachInsight(
     }
   }
 
-  // 2. Remis
-  if (isDraw) {
-    const pl = `Partia zakończona remisem (pat lub brak materiału). Dobra, solidna walka.`;
-    const en = `Game drawn (stalemate or insufficient material). Solid fight.`;
+  // 3. Pozostałe formy remisu
+  if (isThreefold) {
+    const pl = `Partia zakończona remisem przez trzykrotne powtórzenie tej samej pozycji.`;
+    const en = `Game drawn by threefold repetition of the position.`;
     return {
       insight: lang === "pl" ? pl : en,
       audioText: lang === "pl" ? pl : en,
     };
   }
 
-  // 3. Szach (bezwzględny priorytet)
+  if (isInsufficient) {
+    const pl = `Partia zakończona remisem z powodu braku materiału matującego na planszy.`;
+    const en = `Game drawn due to insufficient mating material.`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
+  if (isDraw) {
+    const pl = `Partia zakończona remisem. Dobra, solidna walka obu stron.`;
+    const en = `Game drawn. Solid fight from both sides.`;
+    return {
+      insight: lang === "pl" ? pl : en,
+      audioText: lang === "pl" ? pl : en,
+    };
+  }
+
+  // 4. Szach (bezwzględny priorytet podczas trwania partii)
   if (inCheck) {
     if (isPlayerMove) {
       const pl = `Szach! Dajesz szacha ruchem ${lastMove.san}. Zmuszasz rywala do obrony i przejmujesz inicjatywę.`;
@@ -656,7 +696,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 4. Zbicie figury
+  // 5. Zbicie figury
   if (lastMove.captured) {
     const capNamePl = PIECE_NAMES_PL[lastMove.captured] || "figurę";
     const capNameEn = PIECE_NAMES_EN[lastMove.captured] || "piece";
@@ -687,7 +727,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 5. Ruch przeciwnika – precyzyjna analiza zagrożeń dla bierek gracza
+  // 6. Ruch przeciwnika – precyzyjna analiza zagrożeń dla bierek gracza
   if (!isPlayerMove) {
     const opponentColor = lastMove.color; // 'w' | 'b'
     const playerColor = opponentColor === "w" ? "b" : "w";
@@ -749,7 +789,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 6. Roszada
+  // 7. Roszada
   if (lastMove.san === "O-O" || lastMove.san === "O-O-O") {
     if (isPlayerMove) {
       const pl = `Roszada wykonana. Twój król chowa się za zwartym łańcuchem pionów, a wieża natychmiast włącza się do gry w centrum.`;
@@ -768,7 +808,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 7. Otwarcie (ruch 1–4)
+  // 8. Otwarcie (ruch 1–4)
   const moveNumber = Math.ceil(game.history().length / 2);
 
   if (moveNumber <= 4) {
@@ -822,7 +862,7 @@ export function generateCoachInsight(
     }
   }
 
-  // 8. Figury ogólne
+  // 9. Figury ogólne
   if (lastMove.piece === "k") {
     const pl = isPlayerMove
       ? `Ruch królem na ${lastMove.to}. Pamiętaj o bezpieczeństwie monarchy, gdy na planszy są jeszcze ciężkie figury.`
