@@ -74,11 +74,7 @@ export default function Page() {
   });
 
   const lastValidCoachInsightRef = useRef<string>("");
-  const pendingBotInsightRef = useRef<{
-    insight: string;
-    audioText: string;
-  } | null>(null);
-  const isPlayingPlayerAudioRef = useRef(false);
+  const botTimeoutRef = useRef<number | null>(null);
 
   const t = translations[lang];
 
@@ -112,7 +108,7 @@ export default function Page() {
   };
 
   /**
-   * Płynna synteza mowy z obsługą kolejkowania, wyciszenia i blokadą mikrofonu
+   * Płynna synteza mowy z obsługą kolejkowania, wyciszenia i powiadomienia o zakończeniu
    */
   const announce = (message: string, onComplete?: () => void) => {
     if (coachMuted) {
@@ -187,8 +183,8 @@ export default function Page() {
   };
 
   /**
-   * Silnik odpowiedzi bota szachowego z obsługą poziomów Beginner / Intermediate / Master
-   * Wykonuje ruch fizycznie na planszy, a komentarz trenera odtwarza po zakończeniu mowy o ruchu gracza
+   * Silnik odpowiedzi bota szachowego:
+   * Wykonuje fizyczny ruch na szachownicy, odtwarza dźwięk i natychmiast komentuje ruch przeciwnika
    */
   const executeComputerResponse = () => {
     if (gameInstance.isGameOver()) return;
@@ -203,7 +199,7 @@ export default function Page() {
       setMoves([...gameInstance.history()]);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
 
-      // Efekt dźwiękowy dla ruchu komputera
+      // Efekt dźwiękowy dokładnie w momencie wykonania ruchu na planszy!
       if (gameInstance.isCheckmate()) {
         playVictorySound();
       } else if (gameInstance.inCheck()) {
@@ -221,14 +217,9 @@ export default function Page() {
         false,
       );
 
-      // Jeśli lektor wciąż mówi o ruchu gracza, kolejka poczeka z komentarzem bota
-      if (isPlayingPlayerAudioRef.current) {
-        pendingBotInsightRef.current = replyAnalysis;
-      } else {
-        setCoachInsight(replyAnalysis.insight);
-        lastValidCoachInsightRef.current = replyAnalysis.insight;
-        announce(replyAnalysis.audioText);
-      }
+      setCoachInsight(replyAnalysis.insight);
+      lastValidCoachInsightRef.current = replyAnalysis.insight;
+      announce(replyAnalysis.audioText);
     } catch {
       // Ignoruj błąd
     }
@@ -236,6 +227,12 @@ export default function Page() {
 
   const applyMove = (notation: string | { from: string; to: string }) => {
     try {
+      // Anuluj ewentualne oczekujące ruchy bota przy nowym ruchu
+      if (botTimeoutRef.current) {
+        window.clearTimeout(botTimeoutRef.current);
+        botTimeoutRef.current = null;
+      }
+
       let finalMove: any = notation;
 
       // Inteligentne dopasowanie bicia jeśli podano "x..." lub bicie na dane pole
@@ -262,7 +259,7 @@ export default function Page() {
         throw new Error("Invalid move");
       }
 
-      // Efekt dźwiękowy dla wykonanego ruchu
+      // Efekt dźwiękowy dla wykonanego ruchu gracza
       if (gameInstance.isCheckmate()) {
         playVictorySound();
       } else if (gameInstance.inCheck()) {
@@ -280,6 +277,7 @@ export default function Page() {
       setSelected(null);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
 
+      // 1. Obsługa zadań taktycznych (Puzzle)
       if (activePuzzle !== null) {
         const puzzleCheck = evaluateTacticalPuzzle(
           activePuzzle,
@@ -298,7 +296,7 @@ export default function Page() {
         return;
       }
 
-      // 1. Analiza ruchu gracza
+      // 2. Analiza posunięcia gracza
       const playerAnalysis = generateCoachInsight(
         gameInstance,
         result,
@@ -308,34 +306,26 @@ export default function Page() {
       setCoachInsight(playerAnalysis.insight);
       lastValidCoachInsightRef.current = playerAnalysis.insight;
 
-      // Oznaczamy, że lektor mówi o ruchu gracza
-      isPlayingPlayerAudioRef.current = true;
-      pendingBotInsightRef.current = null;
-
-      announce(playerAnalysis.audioText, () => {
-        isPlayingPlayerAudioRef.current = false;
-        // Gdy skończy mówić o ruchu gracza, jeśli bot zdążył przygotować odpowiedź, odtwórz ją teraz!
-        if (pendingBotInsightRef.current) {
-          const botAnalysis = pendingBotInsightRef.current;
-          pendingBotInsightRef.current = null;
-          setCoachInsight(botAnalysis.insight);
-          lastValidCoachInsightRef.current = botAnalysis.insight;
-          announce(botAnalysis.audioText);
-        }
-      });
-
-      // Wykonaj ruch bota z małym opóźnieniem naturalnym
-      window.setTimeout(() => {
-        executeComputerResponse();
-      }, 700);
+      // NATURAL PACING:
+      // Bot wykonuje ruch na planszy DOPIERO wtedy, gdy lektor skończy omawiać posunięcie gracza!
+      if (!coachMuted) {
+        announce(playerAnalysis.audioText, () => {
+          // Naturalna pauza 500ms na namysł wirtualnego rywala po wysłuchaniu trenera
+          botTimeoutRef.current = window.setTimeout(() => {
+            executeComputerResponse();
+          }, 500);
+        });
+      } else {
+        // Jeśli głos jest wyciszony, odczekaj 800ms naturalnej pauzy
+        botTimeoutRef.current = window.setTimeout(() => {
+          executeComputerResponse();
+        }, 800);
+      }
     } catch {
       // Dźwięk błędu przy próbie nielegalnego ruchu
       playIllegalSound();
 
-      const err =
-        lang === "pl"
-          ? "To posunięcie jest niedozwolone w tej pozycji."
-          : "Illegal move. Please try another move.";
+      const err = t.illegalMoveMsg;
       setCoachInsight(err);
 
       window.setTimeout(() => {
@@ -347,10 +337,7 @@ export default function Page() {
   };
 
   /**
-   * Obsługa kliknięcia pola na szachownicy:
-   * - kliknięcie własnej bierki natychmiast ją wybiera (bez potrzeby odklikiwania poprzedniej!)
-   * - powtórne kliknięcie tej samej bierki odznacza ją
-   * - kliknięcie docelowego pola próbuje wykonać ruch
+   * Obsługa kliknięcia pola na szachownicy
    */
   const handleSquareClick = (i: number) => {
     const rowIndex = Math.floor(i / 8);
@@ -386,6 +373,11 @@ export default function Page() {
   };
 
   const newGame = () => {
+    if (botTimeoutRef.current) {
+      window.clearTimeout(botTimeoutRef.current);
+      botTimeoutRef.current = null;
+    }
+
     gameInstance.reset();
     setBoard([...gameInstance.board()]);
     setTurn(gameInstance.turn());
@@ -395,24 +387,20 @@ export default function Page() {
     setMaterial(calculateMaterialBalance(gameInstance, lang));
     playMoveSound();
 
-    const displayText =
-      lang === "pl"
-        ? "Rozpoczynamy nową partię! Wypowiedz swój ruch otwarcia."
-        : "Starting fresh game! Speak your opening move.";
+    const displayText = t.newGameIntroText;
     setCoachInsight(displayText);
     lastValidCoachInsightRef.current = displayText;
-
-    const audioText =
-      lang === "pl"
-        ? "Rozpoczynamy nową rozgrywkę! Wypowiedz swój ruch otwarcia."
-        : displayText;
-
-    announce(audioText);
+    announce(displayText);
     scrollToSection("live-coach");
   };
 
   const undoMove = () => {
     try {
+      if (botTimeoutRef.current) {
+        window.clearTimeout(botTimeoutRef.current);
+        botTimeoutRef.current = null;
+      }
+
       const history = gameInstance.history();
       if (history.length === 0) return;
 
@@ -428,10 +416,7 @@ export default function Page() {
       setMaterial(calculateMaterialBalance(gameInstance, lang));
       playMoveSound();
 
-      const undoText =
-        lang === "pl"
-          ? "Cofnięto ruch. Wybierz inne posunięcie."
-          : "Move undone. Choose another move.";
+      const undoText = t.undoTextMsg;
       setCoachInsight(undoText);
       lastValidCoachInsightRef.current = undoText;
       announce(undoText);
@@ -441,6 +426,11 @@ export default function Page() {
   };
 
   const loadPuzzle = (index: number) => {
+    if (botTimeoutRef.current) {
+      window.clearTimeout(botTimeoutRef.current);
+      botTimeoutRef.current = null;
+    }
+
     const puzzle = TACTICAL_PUZZLES[index];
     if (!puzzle) return;
 
@@ -579,6 +569,7 @@ export default function Page() {
                 selectedSquare={selected}
                 onSquareClick={handleSquareClick}
                 blindfold={blind}
+                lang={lang}
                 labels={{
                   blind: t.blind,
                   peek: t.peek,
@@ -685,12 +676,10 @@ export default function Page() {
                       )}
                     >
                       {material.score > 0
-                        ? `${lang === "pl" ? "Białe" : "White"} ${material.display}`
+                        ? `${t.materialWhite} ${material.display}`
                         : material.score < 0
-                          ? `${lang === "pl" ? "Czarne" : "Black"} ${material.display}`
-                          : lang === "pl"
-                            ? "Równe (0)"
-                            : "Equal (0)"}
+                          ? `${t.materialBlack} ${material.display}`
+                          : t.materialEqual}
                     </span>
                   </div>
                   <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#d8e2d4] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e]">
