@@ -2,21 +2,18 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+// Title: dokładnie 50 znaków
+const siteTitle = "Trener szachowy audio. Poznaj taktykę i każdy ruch";
+
+// Description: dokładnie 150 znaków
+const siteDescription =
+  "Trener szachowy audio. Poznaj taktykę i zaplanuj ruch głosem. Trening gry w ciemno, analiza pozycji i interaktywne łamigłówki szachowe w przeglądarce.";
+
 export const metadata: Metadata = {
-  title: "Voice Chess Coach: Blindfold AI Game & Tactics APP",
-  description:
-    "Play full chess games and train tactics using only your voice. Interactive AI audio coach for blindfold players, visually impaired, and masters alike.",
+  title: siteTitle,
+  description: siteDescription,
   generator: "ChessTactics Audio Coach",
   applicationName: "ChessTactics Audio Coach",
-  keywords: [
-    "Voice Chess",
-    "Blindfold Chess",
-    "AI Chess Coach",
-    "Szachy w ciemno",
-    "Trener szachowy audio",
-    "Accessibility chess",
-    "WCAG chess",
-  ],
   manifest: "/site.webmanifest",
   icons: {
     icon: [
@@ -50,9 +47,8 @@ export const metadata: Metadata = {
   },
   openGraph: {
     siteName: "ChessTactics Audio Coach",
-    title: "Voice Chess Coach: Blindfold AI Game & Tactics APP",
-    description:
-      "Play full chess games and train tactics using only your voice. Interactive AI audio coach for blindfold players, visually impaired, and masters alike.",
+    title: siteTitle,
+    description: siteDescription,
     type: "website",
     locale: "pl_PL",
     alternateLocale: "en_US",
@@ -63,15 +59,14 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         type: "image/png",
-        alt: "ChessTactics Audio Coach - Voice & Blindfold Chess Training",
+        alt: "ChessTactics Audio Coach - Trener szachowy audio",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Voice Chess Coach: Blindfold AI Game & Tactics APP",
-    description:
-      "Voice-first chess training with an interactive AI audio coach.",
+    title: siteTitle,
+    description: siteDescription,
     images: ["/og-image.png"],
   },
   metadataBase: new URL("https://chesstactics-audio.netlify.app"),
@@ -102,8 +97,7 @@ export default function RootLayout({
     name: "ChessTactics Audio Coach",
     alternateName: "Głosowy Trener Szachowy",
     url: "https://chesstactics-audio.netlify.app",
-    description:
-      "Play full chess games and train tactics using only your voice. Interactive AI audio coach for blindfold players, visually impaired, and masters alike.",
+    description: siteDescription,
     applicationCategory: "GameApplication, EducationalApplication",
     operatingSystem: "All modern browsers with Web Speech API support",
     inLanguage: ["pl", "en"],
