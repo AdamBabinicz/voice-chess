@@ -1,7 +1,7 @@
 // components/cookie-consent.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface CookieConsentProps {
   isOpen: boolean;
@@ -28,36 +28,43 @@ export function CookieConsent({
 }: CookieConsentProps) {
   const [mounted, setMounted] = useState(false);
   const [showTop, setShowTop] = useState(false);
+  const initialCheckDone = useRef(false);
 
   useEffect(() => {
     setMounted(true);
 
-    // Sprawdź, czy stan zgody jest już zapisany w pamięci przeglądarki
-    try {
-      const savedConsent = localStorage.getItem("cookie_consent_state");
-      if (savedConsent) {
-        onClose();
-        if (
-          typeof window !== "undefined" &&
-          typeof window.gtag === "function"
-        ) {
-          if (savedConsent === "accepted") {
-            window.gtag("consent", "update", {
-              analytics_storage: "granted",
-            });
-            window.dataLayer = window.dataLayer || [];
-            window.dataLayer.push({ event: "cookie_consent_accepted" });
-          } else {
-            window.gtag("consent", "update", {
-              analytics_storage: "denied",
-            });
-            window.dataLayer = window.dataLayer || [];
-            window.dataLayer.push({ event: "cookie_consent_rejected" });
+    // Wykonaj sprawdzenie localStorage TYLKO RAZ przy starcie aplikacji
+    if (!initialCheckDone.current) {
+      initialCheckDone.current = true;
+      try {
+        const savedConsent = localStorage.getItem("cookie_consent_state");
+        if (savedConsent) {
+          // Jeśli decyzja już była podjęta wcześniej, zamknij domyślnie otwarty baner
+          onClose();
+
+          // I przekaż stan do Google Consent Mode
+          if (
+            typeof window !== "undefined" &&
+            typeof window.gtag === "function"
+          ) {
+            if (savedConsent === "accepted") {
+              window.gtag("consent", "update", {
+                analytics_storage: "granted",
+              });
+              window.dataLayer = window.dataLayer || [];
+              window.dataLayer.push({ event: "cookie_consent_accepted" });
+            } else {
+              window.gtag("consent", "update", {
+                analytics_storage: "denied",
+              });
+              window.dataLayer = window.dataLayer || [];
+              window.dataLayer.push({ event: "cookie_consent_rejected" });
+            }
           }
         }
+      } catch {
+        // Ignoruj błąd dostępu do localStorage
       }
-    } catch {
-      // Ignoruj błąd localStorage
     }
 
     const onScroll = () => {
@@ -75,7 +82,7 @@ export function CookieConsent({
     }
 
     if (typeof window !== "undefined") {
-      // 1. Oficjalna aktualizacja Google Consent Mode v2
+      // 1. Google Consent Mode v2 update
       if (typeof window.gtag === "function") {
         window.gtag("consent", "update", {
           analytics_storage: "granted",
@@ -85,7 +92,7 @@ export function CookieConsent({
         });
       }
 
-      // 2. Wysłanie zdarzenia do warstwy dataLayer
+      // 2. DataLayer event
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
         event: "cookie_consent_accepted",
@@ -123,9 +130,9 @@ export function CookieConsent({
 
   return (
     <>
-      {/* Baner zgód na dole ekranu */}
+      {/* Baner zgód - z-[9999] gwarantuje, że pojawi się ponad widżetem Tag Assistanta */}
       {isOpen && (
-        <div className="fixed inset-x-4 bottom-4 z-50 flex flex-col gap-4 rounded-2xl border border-[#d5e1d0] bg-white p-5 shadow-2xl dark:border-[#334238] dark:bg-[#1d2820] sm:inset-x-auto sm:right-6 sm:max-w-xl sm:flex-row sm:items-center">
+        <div className="fixed inset-x-4 bottom-4 z-[9999] flex flex-col gap-4 rounded-2xl border border-[#d5e1d0] bg-white p-5 shadow-2xl dark:border-[#334238] dark:bg-[#1d2820] sm:inset-x-auto sm:right-6 sm:max-w-xl sm:flex-row sm:items-center animate-in fade-in slide-in-from-bottom-4 duration-200">
           <p className="flex-1 text-xs text-[#2a362f] dark:text-[#e2e8f0] sm:text-sm">
             {cookieText}{" "}
             <button

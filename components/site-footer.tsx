@@ -26,7 +26,7 @@ export function SiteFooter({
     lang === "pl" ? "Ustawienia plików cookie" : "Cookie settings";
 
   return (
-    <footer className="border-t border-[#dfe5dc] px-5 py-10 dark:border-[#29332e]">
+    <footer className="relative z-40 border-t border-[#dfe5dc] px-5 pt-10 pb-28 sm:pb-12 dark:border-[#29332e]">
       <div className="mx-auto flex max-w-[1360px] flex-col gap-6 text-sm text-[#3c4a41] dark:text-[#cbd5e1] sm:flex-row sm:items-center sm:justify-between">
         <div>
           <strong className="font-serif text-[#17201c] dark:text-white">
@@ -40,7 +40,7 @@ export function SiteFooter({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+        <div className="relative z-50 flex flex-wrap items-center gap-4 text-xs font-semibold">
           <span>
             {lang.toUpperCase()} · {dark ? "Dark" : "Light"}
           </span>
