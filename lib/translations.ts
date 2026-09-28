@@ -217,7 +217,7 @@ export const translations: Record<Lang, TranslationSchema> = {
     backTop: "Wróć na górę",
     newGameBtn: "Nowa partia",
     undoBtn: "Cofnij",
-    resignBtn: "Poddaj się",
+    resignBtn: "Poddaję się",
     resignedMsg:
       "Poddajesz partię. Czarne wygrywają przez rezygnację. Głowa do góry — każda porażka to cenna lekcja! Rozpocznijmy nową partię.",
     listeningText:
