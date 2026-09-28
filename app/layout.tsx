@@ -9,6 +9,8 @@ const siteTitle = "Trener szachowy audio. Poznaj taktykę i każdy ruch";
 const siteDescription =
   "Trener szachowy audio. Poznaj taktykę i zaplanuj ruch głosem. Trening gry w ciemno, analiza pozycji i interaktywne łamigłówki szachowe w przeglądarce.";
 
+const siteUrl = "https://chesstactics-audio.netlify.app";
+
 export const metadata: Metadata = {
   title: siteTitle,
   description: siteDescription,
@@ -24,6 +26,16 @@ export const metadata: Metadata = {
       {
         url: "/favicon-96x96.png",
         sizes: "96x96",
+        type: "image/png",
+      },
+      {
+        url: "/web-app-manifest-192x192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: "/web-app-manifest-512x512.png",
+        sizes: "512x512",
         type: "image/png",
       },
       {
@@ -52,7 +64,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pl_PL",
     alternateLocale: "en_US",
-    url: "https://chesstactics-audio.netlify.app",
+    url: siteUrl,
     images: [
       {
         url: "/og-image.png",
@@ -69,11 +81,13 @@ export const metadata: Metadata = {
     description: siteDescription,
     images: ["/og-image.png"],
   },
-  metadataBase: new URL("https://chesstactics-audio.netlify.app"),
+  metadataBase: new URL(siteUrl),
+  // Rozwiązanie problemu "Canonical Tag Check" oraz powiązań językowych:
   alternates: {
+    canonical: siteUrl,
     languages: {
-      pl: "/pl",
-      en: "/",
+      pl: siteUrl,
+      en: `${siteUrl}/en`,
     },
   },
 };
@@ -96,7 +110,7 @@ export default function RootLayout({
     "@type": ["WebApplication", "SoftwareApplication", "SportsApplication"],
     name: "ChessTactics Audio Coach",
     alternateName: "Głosowy Trener Szachowy",
-    url: "https://chesstactics-audio.netlify.app",
+    url: siteUrl,
     description: siteDescription,
     applicationCategory: "GameApplication, EducationalApplication",
     operatingSystem: "All modern browsers with Web Speech API support",
