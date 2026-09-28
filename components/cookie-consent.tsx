@@ -2,8 +2,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Cookie } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface CookieConsentProps {
   isOpen: boolean;
@@ -20,7 +18,6 @@ interface CookieConsentProps {
 
 export function CookieConsent({
   isOpen,
-  onOpen,
   onClose,
   onOpenPrivacy,
   cookieText,
@@ -28,7 +25,6 @@ export function CookieConsent({
   rejectText,
   acceptText,
   backTopText,
-  cookieSettingsText,
 }: CookieConsentProps) {
   const [mounted, setMounted] = useState(false);
   const [showTop, setShowTop] = useState(false);
@@ -86,29 +82,13 @@ export function CookieConsent({
         </div>
       )}
 
-      {/* Dyskretny przycisk ciasteczka do ponownego otwarcia (RODO / ePrivacy) */}
-      {!isOpen && (
-        <button
-          type="button"
-          onClick={onOpen}
-          aria-label={cookieSettingsText}
-          title={cookieSettingsText}
-          className="fixed bottom-6 left-6 z-30 flex size-11 items-center justify-center rounded-full border border-[#d5e1d0] bg-white text-[#2d4e13] shadow-lg transition-all hover:scale-105 active:scale-95 dark:border-[#334238] dark:bg-[#18201b] dark:text-[#bcee68] cursor-pointer"
-        >
-          <Cookie className="size-5" />
-        </button>
-      )}
-
-      {/* Przycisk powrotu na górę strony */}
+      {/* Przycisk powrotu na górę strony (wyświetlany po przewinięciu) */}
       {showTop && (
         <button
           type="button"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           aria-label={backTopText}
-          className={cn(
-            "fixed bottom-6 z-30 flex size-11 items-center justify-center rounded-full bg-[#17201c] text-white shadow-xl transition-all hover:scale-105 active:scale-95 dark:bg-[#c8ee63] dark:text-[#17201c] cursor-pointer",
-            !isOpen ? "left-20" : "left-6",
-          )}
+          className="fixed bottom-6 left-6 z-30 flex size-11 items-center justify-center rounded-full bg-[#17201c] text-white shadow-xl transition-all hover:scale-105 active:scale-95 dark:bg-[#c8ee63] dark:text-[#17201c] cursor-pointer"
         >
           ↑
         </button>
