@@ -1,13 +1,19 @@
 # ChessTactics Audio Coach
+> Voice-first chess training web application with blindfold practice, speech recognition, and instant tactical audio feedback.
 
-Voice-first chess training for complete games, tactical puzzles, blindfold practice, and accessible audio coaching.
+## Overview
+ChessTactics Audio Coach enables visually impaired players, blindfold practitioners, and hands-free chess students to play chess, solve tactical puzzles, and receive pedagogical coaching using natural voice commands in English and Polish.
 
-## Core features
-- Interactive chess board with move selection and algebraic move log
-- Web Speech API-ready audio coach experience
-- Blindfold mode, keyboard navigation, and screen-reader-friendly labels
-- English and Polish interface
-- Light and dark display themes
+## Core Capabilities
+- Natural Voice Input: Voice command recognition for chess moves via Web Speech API (English and Polish algebraic notation).
+- Tactical Audio Coach: Real-time heuristic evaluation explaining center control, piece coordination, pins, forks, and threats.
+- Master AI Analysis: Deep Grandmaster-level positional assessment powered by Google Gemini API.
+- Blindfold Visualization Mode: Complete board shroud with 3-second emergency peek and spoken board position reader.
+- Tactical Puzzles: Curated tactical training positions (Knight Forks, Back Rank Mate, Absolute Pins, Skewers, Discovered Attacks).
+- Accessibility: 100% WCAG 2.1 AA compliant, screen-reader friendly, and keyboard operable.
 
-## Product
-The main app is available at `/`. Legal routes are `/privacy-policy`, `/terms`, `/pl/polityka-prywatnosci`, and `/pl/regulamin`.
+## Links & Navigation
+- Main Application: https://chesstactics-audio.netlify.app/
+- Source Code: https://github.com/AdamBabinicz/voice-chess
+- Privacy Policy: https://chesstactics-audio.netlify.app/
+- Terms of Service: https://chesstactics-audio.netlify.app/

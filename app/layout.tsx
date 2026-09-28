@@ -82,7 +82,6 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
   },
   metadataBase: new URL(siteUrl),
-  // Rozwiązanie problemu "Canonical Tag Check" oraz powiązań językowych:
   alternates: {
     canonical: siteUrl,
     languages: {
@@ -105,22 +104,45 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Kompletny graf Schema.org z WebApplication oraz Identity Schema (Person / Creator)
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": ["WebApplication", "SoftwareApplication", "SportsApplication"],
-    name: "ChessTactics Audio Coach",
-    alternateName: "Głosowy Trener Szachowy",
-    url: siteUrl,
-    description: siteDescription,
-    applicationCategory: "GameApplication, EducationalApplication",
-    operatingSystem: "All modern browsers with Web Speech API support",
-    inLanguage: ["pl", "en"],
-    accessibilityFeature: [
-      "voiceInput",
-      "voiceOutput",
-      "highContrastDisplay",
-      "screenReaderSupport",
-      "keyboardNavigation",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": `${siteUrl}/#author`,
+        name: "Adam Gierczak",
+        url: "https://github.com/AdamBabinicz",
+        sameAs: [
+          "https://github.com/AdamBabinicz",
+          "https://devpost.com/AdamBabinicz",
+        ],
+        jobTitle: "Software Engineer & Creator",
+      },
+      {
+        "@type": ["WebApplication", "SoftwareApplication", "SportsApplication"],
+        "@id": `${siteUrl}/#app`,
+        name: "ChessTactics Audio Coach",
+        alternateName: "Głosowy Trener Szachowy",
+        url: siteUrl,
+        description: siteDescription,
+        applicationCategory: "GameApplication, EducationalApplication",
+        operatingSystem: "All modern browsers with Web Speech API support",
+        inLanguage: ["pl", "en"],
+        author: {
+          "@id": `${siteUrl}/#author`,
+        },
+        creator: {
+          "@id": `${siteUrl}/#author`,
+        },
+        accessibilityFeature: [
+          "voiceInput",
+          "voiceOutput",
+          "highContrastDisplay",
+          "screenReaderSupport",
+          "keyboardNavigation",
+        ],
+      },
     ],
   };
 
