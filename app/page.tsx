@@ -2,25 +2,18 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import {
-  AudioLines,
-  ChevronRight,
-  EyeOff,
-  Headphones,
-  Loader2,
-  Play,
-  Sparkles,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { ChevronRight, EyeOff, Headphones, Play } from "lucide-react";
 import { Chess, Square } from "chess.js";
 import { Button } from "@/components/ui/button";
 import { ChessBoardView } from "@/components/chess-board-view";
+import { CoachPanel } from "@/components/coach-panel";
 import { VoiceController } from "@/components/voice-controller";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
+import { CookieConsent } from "@/components/cookie-consent";
+import { TacticsSection } from "@/components/tactics-section";
 import { SettingsModal } from "@/components/settings-modal";
 import { LegalModal } from "@/components/legal-modal";
-import { SiteHeader } from "@/components/site-header";
-import { TacticsSection } from "@/components/tactics-section";
 import {
   calculateMaterialBalance,
   evaluateTacticalPuzzle,
@@ -43,7 +36,6 @@ import { cn } from "@/lib/utils";
 type LegalType = "privacy" | "terms" | null;
 
 export default function Page() {
-  const [mounted, setMounted] = useState(false);
   const [lang, setLang] = useState<Lang>("pl");
   const [dark, setDark] = useState(false);
   const [blind, setBlind] = useState(false);
@@ -52,7 +44,6 @@ export default function Page() {
   const [settings, setSettings] = useState(false);
   const [legal, setLegal] = useState<LegalType>(null);
   const [cookies, setCookies] = useState(true);
-  const [showTop, setShowTop] = useState(false);
   const [difficulty, setDifficulty] = useState("intermediate");
   const [speed, setSpeed] = useState("1");
   const [voiceMode, setVoiceMode] = useState<"continuous" | "push">("push");
@@ -79,16 +70,9 @@ export default function Page() {
   const t = translations[lang];
 
   useEffect(() => {
-    setMounted(true);
     const defaultText = translations[lang].defaultCoachText;
     setCoachInsight(defaultText);
     lastValidCoachInsightRef.current = defaultText;
-
-    const onScroll = () => {
-      setShowTop(window.scrollY > 250);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
   }, [lang]);
 
   useEffect(() => {
@@ -99,17 +83,6 @@ export default function Page() {
     }
   }, [dark]);
 
-  const acceptCookies = () => {
-    if (typeof window !== "undefined") {
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({ event: "cookie_consent_accepted" });
-    }
-    setCookies(false);
-  };
-
-  /**
-   * Płynna synteza mowy z obsługą kolejkowania, wyciszenia i powiadomienia o zakończeniu
-   */
   const announce = (message: string, onComplete?: () => void) => {
     if (coachMuted) {
       if (onComplete) onComplete();
@@ -149,9 +122,6 @@ export default function Page() {
     announce(statusText);
   };
 
-  /**
-   * Głęboka analiza pozycji przez model AI / Arcymistrza
-   */
   const handleDeepAiAnalysis = async () => {
     if (isAnalyzingAi) return;
     setIsAnalyzingAi(true);
@@ -176,16 +146,12 @@ export default function Page() {
         }
       }
     } catch {
-      // Ignoruj błąd sieciowy
+      // Ignoruj błąd
     } finally {
       setIsAnalyzingAi(false);
     }
   };
 
-  /**
-   * Silnik odpowiedzi bota szachowego:
-   * Wykonuje fizyczny ruch na szachownicy, odtwarza dźwięk i natychmiast komentuje ruch przeciwnika
-   */
   const executeComputerResponse = () => {
     if (gameInstance.isGameOver()) return;
 
@@ -199,7 +165,6 @@ export default function Page() {
       setMoves([...gameInstance.history()]);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
 
-      // Efekt dźwiękowy dokładnie w momencie wykonania ruchu na planszy!
       if (gameInstance.isCheckmate()) {
         playVictorySound();
       } else if (gameInstance.inCheck()) {
@@ -221,13 +186,12 @@ export default function Page() {
       lastValidCoachInsightRef.current = replyAnalysis.insight;
       announce(replyAnalysis.audioText);
     } catch {
-      // Ignoruj błąd
+      // Ignoruj
     }
   };
 
   const applyMove = (notation: string | { from: string; to: string }) => {
     try {
-      // Anuluj ewentualne oczekujące ruchy bota przy nowym ruchu
       if (botTimeoutRef.current) {
         window.clearTimeout(botTimeoutRef.current);
         botTimeoutRef.current = null;
@@ -235,7 +199,6 @@ export default function Page() {
 
       let finalMove: any = notation;
 
-      // Inteligentne dopasowanie bicia jeśli podano "x..." lub bicie na dane pole
       if (typeof finalMove === "string") {
         const cleanStr = finalMove.trim();
         if (cleanStr.startsWith("x")) {
@@ -259,7 +222,6 @@ export default function Page() {
         throw new Error("Invalid move");
       }
 
-      // Efekt dźwiękowy dla wykonanego ruchu gracza
       if (gameInstance.isCheckmate()) {
         playVictorySound();
       } else if (gameInstance.inCheck()) {
@@ -277,7 +239,6 @@ export default function Page() {
       setSelected(null);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
 
-      // 1. Obsługa zadań taktycznych (Puzzle)
       if (activePuzzle !== null) {
         const puzzleCheck = evaluateTacticalPuzzle(
           activePuzzle,
@@ -296,7 +257,6 @@ export default function Page() {
         return;
       }
 
-      // 2. Analiza posunięcia gracza
       const playerAnalysis = generateCoachInsight(
         gameInstance,
         result,
@@ -306,25 +266,19 @@ export default function Page() {
       setCoachInsight(playerAnalysis.insight);
       lastValidCoachInsightRef.current = playerAnalysis.insight;
 
-      // NATURAL PACING:
-      // Bot wykonuje ruch na planszy DOPIERO wtedy, gdy lektor skończy omawiać posunięcie gracza!
       if (!coachMuted) {
         announce(playerAnalysis.audioText, () => {
-          // Naturalna pauza 500ms na namysł wirtualnego rywala po wysłuchaniu trenera
           botTimeoutRef.current = window.setTimeout(() => {
             executeComputerResponse();
           }, 500);
         });
       } else {
-        // Jeśli głos jest wyciszony, odczekaj 800ms naturalnej pauzy
         botTimeoutRef.current = window.setTimeout(() => {
           executeComputerResponse();
         }, 800);
       }
     } catch {
-      // Dźwięk błędu przy próbie nielegalnego ruchu
       playIllegalSound();
-
       const err = t.illegalMoveMsg;
       setCoachInsight(err);
 
@@ -336,9 +290,6 @@ export default function Page() {
     }
   };
 
-  /**
-   * Obsługa kliknięcia pola na szachownicy
-   */
   const handleSquareClick = (i: number) => {
     const rowIndex = Math.floor(i / 8);
     const columnIndex = i % 8;
@@ -355,19 +306,16 @@ export default function Page() {
       const fromCol = selected % 8;
       const fromSquare = `${String.fromCharCode(97 + fromCol)}${8 - fromRow}`;
 
-      // 1. Kliknięcie w to samo pole odznacza je
       if (fromSquare === clickedSquare) {
         setSelected(null);
         return;
       }
 
-      // 2. Kliknięcie w inną własną bierkę natychmiast przestawia zaznaczenie
       if (clickedPiece && clickedPiece.color === gameInstance.turn()) {
         setSelected(i);
         return;
       }
 
-      // 3. W innym wypadku próbujemy wykonać ruch z zaznaczonego pola na kliknięte
       applyMove({ from: fromSquare, to: clickedSquare });
     }
   };
@@ -484,6 +432,7 @@ export default function Page() {
       />
 
       <main id="top">
+        {/* Sekcja Hero */}
         <section className="mx-auto grid max-w-[1360px] gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-16">
           <div className="max-w-xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-700/30 bg-[#eaf4d5] px-3.5 py-1.5 text-xs font-bold tracking-[0.16em] text-[#2d4e13] dark:bg-[#1f2d22] dark:text-[#bcee68]">
@@ -578,152 +527,43 @@ export default function Page() {
                 }}
               />
 
-              <div className="flex flex-col gap-4">
-                <div className="rounded-2xl border border-[#d8e2d4] bg-[#f1f5ed] p-4 dark:border-[#2f3d33] dark:bg-[#202b25]">
-                  <div className="mb-2 flex items-center justify-between text-xs font-bold text-[#2d4e13] dark:text-[#bcee68]">
-                    <span className="flex items-center gap-1.5">
-                      <AudioLines className="size-4" />
-                      {t.coach}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {isSpeaking && (
-                        <span className="flex gap-0.5">
-                          <span className="size-1 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] animate-ping" />
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!coachMuted && typeof window !== "undefined") {
-                            window.speechSynthesis?.cancel();
-                            setIsSpeaking(false);
-                          }
-                          setCoachMuted(!coachMuted);
-                        }}
-                        title={coachMuted ? t.unmuteCoach : t.muteCoach}
-                        aria-label={coachMuted ? t.unmuteCoach : t.muteCoach}
-                        className="rounded-lg p-1 text-[#2d4e13] hover:bg-[#dfead1] dark:text-[#bcee68] dark:hover:bg-[#2b3a30] transition-colors cursor-pointer"
-                      >
-                        {coachMuted ? (
-                          <VolumeX className="size-3.5 text-stone-400 dark:text-stone-500" />
-                        ) : (
-                          <Volume2 className="size-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <p className="font-serif text-sm italic leading-relaxed text-[#2a362f] dark:text-[#e2e8f0]">
-                    &ldquo;{coachInsight}&rdquo;
-                  </p>
-
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => announce(coachInsight)}
-                      disabled={coachMuted}
-                      className="flex items-center gap-1.5 text-xs font-bold text-[#2d4e13] disabled:opacity-40 dark:text-[#bcee68] hover:underline cursor-pointer"
-                    >
-                      {isSpeaking ? (
-                        <VolumeX className="size-4" />
-                      ) : (
-                        <Volume2 className="size-4" />
-                      )}
-                      <span>{t.replay}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleDeepAiAnalysis}
-                      disabled={isAnalyzingAi}
-                      className="flex items-center gap-1.5 rounded-lg border border-[#365314]/30 bg-[#c8ee63]/30 px-2.5 py-1 text-[11px] font-bold text-[#1f3708] hover:bg-[#c8ee63]/50 disabled:opacity-50 dark:border-[#a8d655]/40 dark:bg-[#a8d655]/20 dark:text-[#bced6b] dark:hover:bg-[#a8d655]/40 transition-colors cursor-pointer"
-                    >
-                      {isAnalyzingAi ? (
-                        <Loader2 className="size-3 animate-spin text-[#2d4e13]" />
-                      ) : (
-                        <Sparkles className="size-3 text-[#2d4e13] dark:text-[#bcee68]" />
-                      )}
-                      <span>
-                        {isAnalyzingAi ? t.aiAnalyzing : t.aiAnalysisBtn}
-                      </span>
-                    </button>
-
-                    {blind && (
-                      <button
-                        type="button"
-                        onClick={speakBlindfoldStatus}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-stone-800 hover:text-stone-950 dark:text-stone-200 dark:hover:text-white cursor-pointer"
-                      >
-                        <Headphones className="size-3.5 text-[#2d4e13] dark:text-[#bcee68]" />
-                        <span>{t.statusAudio}</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex justify-between text-xs font-bold text-[#3c4a41] dark:text-[#cbd5e1]">
-                    <span>
-                      {t.moves} ({moves.length} ply)
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-bold font-mono transition-colors",
-                        material.score > 0
-                          ? "bg-emerald-200 text-emerald-950 dark:bg-emerald-950/80 dark:text-emerald-300"
-                          : material.score < 0
-                            ? "bg-amber-200 text-amber-950 dark:bg-amber-950/80 dark:text-amber-300"
-                            : "bg-[#d8e6be] text-[#23380e] dark:bg-[#29382b] dark:text-[#bcee68]",
-                      )}
-                    >
-                      {material.score > 0
-                        ? `${t.materialWhite} ${material.display}`
-                        : material.score < 0
-                          ? `${t.materialBlack} ${material.display}`
-                          : t.materialEqual}
-                    </span>
-                  </div>
-                  <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#d8e2d4] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e]">
-                    {moves.length ? (
-                      moves.map((m, i) => (
-                        <span
-                          key={`${m}-${i}`}
-                          className={cn(
-                            "rounded px-1 py-0.5",
-                            i % 2 === 0
-                              ? "font-bold text-stone-950 dark:text-stone-50"
-                              : "text-stone-700 dark:text-stone-300",
-                          )}
-                        >
-                          {i % 2 === 0 ? `${Math.floor(i / 2) + 1}. ` : ""}
-                          {m}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="font-sans text-[#424e46] dark:text-[#cbd5e1]">
-                        {t.listen}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={undoMove}
-                    disabled={moves.length === 0}
-                    className="flex-1 rounded-xl border border-stone-400 py-1.5 text-xs font-semibold text-stone-800 hover:bg-stone-100 disabled:opacity-40 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-                  >
-                    {t.undoBtn}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={newGame}
-                    className="flex-1 rounded-xl bg-stone-950 py-1.5 text-xs font-bold text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950 transition-colors cursor-pointer"
-                  >
-                    {t.newGameBtn}
-                  </button>
-                </div>
-              </div>
+              <CoachPanel
+                coachInsight={coachInsight}
+                isSpeaking={isSpeaking}
+                coachMuted={coachMuted}
+                onToggleMute={() => {
+                  if (!coachMuted && typeof window !== "undefined") {
+                    window.speechSynthesis?.cancel();
+                    setIsSpeaking(false);
+                  }
+                  setCoachMuted(!coachMuted);
+                }}
+                onReplayAudio={() => announce(coachInsight)}
+                onDeepAiAnalysis={handleDeepAiAnalysis}
+                isAnalyzingAi={isAnalyzingAi}
+                blindfold={blind}
+                onSpeakBlindfoldStatus={speakBlindfoldStatus}
+                moves={moves}
+                material={material}
+                onUndoMove={undoMove}
+                onNewGame={newGame}
+                labels={{
+                  coach: t.coach,
+                  muteCoach: t.muteCoach,
+                  unmuteCoach: t.unmuteCoach,
+                  replay: t.replay,
+                  aiAnalysisBtn: t.aiAnalysisBtn,
+                  aiAnalyzing: t.aiAnalyzing,
+                  statusAudio: t.statusAudio,
+                  moves: t.moves,
+                  materialWhite: t.materialWhite,
+                  materialBlack: t.materialBlack,
+                  materialEqual: t.materialEqual,
+                  listen: t.listen,
+                  undoBtn: t.undoBtn,
+                  newGameBtn: t.newGameBtn,
+                }}
+              />
             </div>
 
             {/* Stopka szachownicy */}
@@ -769,6 +609,7 @@ export default function Page() {
           />
         </div>
 
+        {/* Sekcja łamigłówek taktycznych */}
         <TacticsSection
           lang={lang}
           activePuzzle={activePuzzle}
@@ -779,6 +620,7 @@ export default function Page() {
           activeBadgeText={t.activePuzzleBadge}
         />
 
+        {/* Sekcja Jak to działa */}
         <section
           id="how-it-works"
           className="mx-auto max-w-[1360px] px-5 py-16 sm:px-8 lg:px-12"
@@ -802,84 +644,35 @@ export default function Page() {
         </section>
       </main>
 
-      <footer className="border-t border-[#dfe5dc] px-5 py-10 dark:border-[#29332e]">
-        <div className="mx-auto flex max-w-[1360px] flex-col gap-6 text-sm text-[#3c4a41] dark:text-[#cbd5e1] sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <strong className="font-serif text-[#17201c] dark:text-white">
-              ChessTactics
-            </strong>
-            <p className="mt-1 max-w-sm text-xs leading-relaxed text-[#424e46] dark:text-[#cbd5e1]">
-              {t.description}
-            </p>
-            <p className="mt-2 text-xs text-[#424e46] dark:text-[#94a3b8]">
-              © 2026 ChessTactics. All rights reserved.
-            </p>
-          </div>
+      {/* Stopka */}
+      <SiteFooter
+        lang={lang}
+        dark={dark}
+        description={t.description}
+        privacyLabel={t.privacy}
+        termsLabel={t.terms}
+        onOpenPrivacy={() => setLegal("privacy")}
+        onOpenTerms={() => setLegal("terms")}
+        onOpenCookies={() => setCookies(true)}
+      />
 
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
-            <span>
-              {lang.toUpperCase()} · {dark ? "Dark" : "Light"}
-            </span>
-            <button
-              type="button"
-              onClick={() => setLegal("privacy")}
-              className="underline text-[#3c4a41] dark:text-[#cbd5e1] hover:text-[#17201c] dark:hover:text-white cursor-pointer"
-            >
-              {t.privacy}
-            </button>
-            <button
-              type="button"
-              onClick={() => setLegal("terms")}
-              className="underline text-[#3c4a41] dark:text-[#cbd5e1] hover:text-[#17201c] dark:hover:text-white cursor-pointer"
-            >
-              {t.terms}
-            </button>
-          </div>
-        </div>
-      </footer>
+      {/* Ciasteczka RODO & Przycisk pływający 🍪 */}
+      <CookieConsent
+        isOpen={cookies}
+        onOpen={() => setCookies(true)}
+        onClose={() => setCookies(false)}
+        onOpenPrivacy={() => setLegal("privacy")}
+        cookieText={t.cookie}
+        privacyText={t.privacy}
+        rejectText={t.reject}
+        acceptText={t.accept}
+        backTopText={t.backTop}
+        cookieSettingsText={
+          lang === "pl" ? "Ustawienia plików cookie" : "Cookie settings"
+        }
+      />
 
-      {cookies && (
-        <div className="fixed inset-x-4 bottom-4 z-40 flex flex-col gap-4 rounded-2xl border border-[#d5e1d0] bg-white p-5 shadow-2xl dark:border-[#334238] dark:bg-[#1d2820] sm:inset-x-auto sm:right-6 sm:max-w-xl sm:flex-row sm:items-center">
-          <p className="flex-1 text-xs text-[#2a362f] dark:text-[#e2e8f0] sm:text-sm">
-            {t.cookie}{" "}
-            <button
-              type="button"
-              onClick={() => setLegal("privacy")}
-              className="font-semibold underline cursor-pointer"
-            >
-              {t.privacy}
-            </button>
-          </p>
-          <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={() => setCookies(false)}
-              className="rounded-xl border border-stone-300 bg-stone-100 px-4 py-2 text-xs font-semibold text-stone-800 hover:bg-stone-200 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
-            >
-              {t.reject}
-            </button>
-            <button
-              type="button"
-              onClick={acceptCookies}
-              className="rounded-xl bg-stone-950 px-4 py-2 text-xs font-bold text-white shadow hover:bg-stone-800 dark:bg-[#c8ee63] dark:text-stone-950 dark:hover:bg-[#b8de53] transition-colors cursor-pointer"
-            >
-              {t.accept}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {mounted && showTop && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          aria-label={t.backTop}
-          className="fixed bottom-6 left-6 z-30 flex size-11 items-center justify-center rounded-full bg-[#17201c] text-white shadow-xl transition-all hover:scale-105 active:scale-95 dark:bg-[#c8ee63] dark:text-[#17201c] cursor-pointer"
-        >
-          ↑
-        </button>
-      )}
-
+      {/* Modal ustawień */}
       <SettingsModal
         isOpen={settings}
         onClose={() => setSettings(false)}
@@ -913,6 +706,7 @@ export default function Page() {
         }}
       />
 
+      {/* Modal prawny */}
       <LegalModal
         type={legal}
         onClose={() => setLegal(null)}
@@ -924,10 +718,4 @@ export default function Page() {
       />
     </div>
   );
-}
-
-declare global {
-  interface Window {
-    dataLayer: Array<Record<string, unknown>>;
-  }
 }
