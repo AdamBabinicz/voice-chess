@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { ChevronRight, EyeOff, Headphones, Play } from "lucide-react";
 import { Chess, Square } from "chess.js";
@@ -101,6 +101,8 @@ export default function Page() {
 
   const lastValidCoachInsightRef = useRef<string>("");
   const botTimeoutRef = useRef<number | null>(null);
+  const speakCooldownTimeoutRef = useRef<number | null>(null);
+  const isSpeakingRef = useRef<boolean>(false);
 
   const t = translations[lang];
 
@@ -118,37 +120,56 @@ export default function Page() {
     }
   }, [dark]);
 
-  const announce = (message: string, onComplete?: () => void) => {
-    if (coachMuted) {
-      if (onComplete) onComplete();
-      return;
-    }
+  const announce = useCallback(
+    (message: string, onComplete?: () => void) => {
+      if (coachMuted) {
+        if (onComplete) onComplete();
+        return;
+      }
 
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      try {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.resume();
-        const utterance = new SpeechSynthesisUtterance(message);
-        utterance.lang = lang === "pl" ? "pl-PL" : "en-US";
-        utterance.rate = Number(speed);
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          if (speakCooldownTimeoutRef.current) {
+            window.clearTimeout(speakCooldownTimeoutRef.current);
+            speakCooldownTimeoutRef.current = null;
+          }
+
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.resume();
+
+          const utterance = new SpeechSynthesisUtterance(message);
+          utterance.lang = lang === "pl" ? "pl-PL" : "en-US";
+          utterance.rate = Number(speed);
+
+          utterance.onstart = () => {
+            isSpeakingRef.current = true;
+            setIsSpeaking(true);
+          };
+
+          const handleFinish = () => {
+            // Bezpieczny bufor 600ms po zakończeniu mowy na wygaszenie echa w pomieszczeniu
+            speakCooldownTimeoutRef.current = window.setTimeout(() => {
+              isSpeakingRef.current = false;
+              setIsSpeaking(false);
+              if (onComplete) onComplete();
+            }, 600);
+          };
+
+          utterance.onend = handleFinish;
+          utterance.onerror = handleFinish;
+
+          window.speechSynthesis.speak(utterance);
+        } catch {
+          isSpeakingRef.current = false;
           setIsSpeaking(false);
           if (onComplete) onComplete();
-        };
-        utterance.onerror = () => {
-          setIsSpeaking(false);
-          if (onComplete) onComplete();
-        };
-        window.speechSynthesis.speak(utterance);
-      } catch {
-        setIsSpeaking(false);
+        }
+      } else {
         if (onComplete) onComplete();
       }
-    } else {
-      if (onComplete) onComplete();
-    }
-  };
+    },
+    [coachMuted, lang, speed],
+  );
 
   const handleResign = () => {
     if (isResigned || gameInstance.isGameOver()) return;
@@ -244,6 +265,9 @@ export default function Page() {
   };
 
   const applyMove = (notation: string | { from: string; to: string }) => {
+    // Ignoruj wejścia, jeśli trener aktualnie mówi lub głośnik wybrzmiewa
+    if (isSpeakingRef.current) return;
+
     if (typeof notation === "string" && notation === "RESIGN") {
       handleResign();
       return;
@@ -570,7 +594,6 @@ export default function Page() {
           >
             <div className="mb-4 flex items-center justify-between text-xs font-bold tracking-[0.15em] text-[#2d4e13] dark:text-[#bcee68]">
               <span className="flex items-center gap-1.5">
-                {/* Zastąpiono nieskomponowany ping sprzętowo akcelerowaną kropką */}
                 <span className="size-2 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] transition-opacity" />
                 {t.live}{" "}
                 {activePuzzle !== null &&
@@ -602,8 +625,13 @@ export default function Page() {
                 isSpeaking={isSpeaking}
                 coachMuted={coachMuted}
                 onToggleMute={() => {
+                  if (speakCooldownTimeoutRef.current) {
+                    window.clearTimeout(speakCooldownTimeoutRef.current);
+                    speakCooldownTimeoutRef.current = null;
+                  }
                   if (!coachMuted && typeof window !== "undefined") {
                     window.speechSynthesis?.cancel();
+                    isSpeakingRef.current = false;
                     setIsSpeaking(false);
                   }
                   setCoachMuted(!coachMuted);

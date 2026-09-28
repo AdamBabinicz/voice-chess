@@ -1,7 +1,7 @@
 // components/voice-controller.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Mic, MicOff, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -36,6 +36,7 @@ export function VoiceController({
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
   const isSpeakingRef = useRef(false);
+  const userWantsListeningRef = useRef(false);
 
   useEffect(() => {
     isListeningRef.current = isListening;
@@ -43,16 +44,39 @@ export function VoiceController({
 
   useEffect(() => {
     isSpeakingRef.current = isSpeaking;
+
+    // Gdy lektor zaczyna mówić, fizycznie odcinamy nasłuch mikrofonu,
+    // aby zapobiec zbieraniu echa z głośników urządzenia.
+    if (isSpeaking) {
+      if (recognitionRef.current && isListeningRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // Ignoruj błąd zatrzymania
+        }
+      }
+    } else {
+      // Gdy lektor skończył mówić, a użytkownik miał włączony mikrofon, wznawiamy go
+      if (userWantsListeningRef.current && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsListening(true);
+          isListeningRef.current = true;
+        } catch {
+          // Ignoruj błąd startu jeśli już aktywny
+        }
+      }
+    }
   }, [isSpeaking]);
 
-  useEffect(() => {
+  const initRecognition = useCallback(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       setSpeechSupported(false);
-      return;
+      return null;
     }
 
     const recognition = new SpeechRecognition();
@@ -61,7 +85,7 @@ export function VoiceController({
     recognition.lang = lang === "pl" ? "pl-PL" : "en-US";
 
     recognition.onresult = (event: any) => {
-      // KLUCZOWE: Jeśli lektor właśnie mówi z głośników, ignorujemy echo!
+      // Podwójne zabezpieczenie: odrzucenie echa jeśli lektor mówi
       if (isSpeakingRef.current) {
         return;
       }
@@ -78,22 +102,30 @@ export function VoiceController({
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error === "no-speech") return;
+      if (event.error === "no-speech" || event.error === "aborted") return;
     };
 
     recognition.onend = () => {
-      if (isListeningRef.current) {
+      // Restartuj tylko wtedy, gdy użytkownik chce słuchać I lektor NIE mówi w tym momencie
+      if (userWantsListeningRef.current && !isSpeakingRef.current) {
         try {
           recognition.start();
+          setIsListening(true);
         } catch {
           // Ignoruj
         }
-      } else {
+      } else if (!userWantsListeningRef.current) {
         setIsListening(false);
+        isListeningRef.current = false;
       }
     };
 
-    recognitionRef.current = recognition;
+    return recognition;
+  }, [lang, onMoveParsed]);
+
+  useEffect(() => {
+    const rec = initRecognition();
+    recognitionRef.current = rec;
 
     return () => {
       if (recognitionRef.current) {
@@ -104,26 +136,34 @@ export function VoiceController({
         }
       }
     };
-  }, [lang, onMoveParsed]);
+  }, [initRecognition]);
 
   const toggleListening = () => {
     if (!speechSupported) return;
 
-    if (isListening) {
+    if (userWantsListeningRef.current) {
+      userWantsListeningRef.current = false;
       isListeningRef.current = false;
       setIsListening(false);
       try {
-        recognitionRef.current?.stop();
+        recognitionRef.current?.abort();
       } catch {
         // Ignoruj
       }
     } else {
-      isListeningRef.current = true;
-      setIsListening(true);
-      try {
-        recognitionRef.current?.start();
-      } catch {
-        // Ignoruj
+      userWantsListeningRef.current = true;
+      // Jeśli lektor nie mówi w tej chwili, od razu włączamy
+      if (!isSpeakingRef.current) {
+        isListeningRef.current = true;
+        setIsListening(true);
+        try {
+          recognitionRef.current?.start();
+        } catch {
+          // Ignoruj
+        }
+      } else {
+        // Użytkownik włączył, ale lektor jeszcze mówi - mikrofon uruchomi się automatycznie po wygaśnięciu mowy lektora
+        setIsListening(true);
       }
     }
   };
@@ -146,7 +186,9 @@ export function VoiceController({
           onClick={toggleListening}
           className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold transition-all cursor-pointer ${
             isListening
-              ? "bg-rose-600 text-white shadow-md animate-pulse hover:bg-rose-700"
+              ? isSpeaking
+                ? "bg-amber-600 text-white shadow-md hover:bg-amber-700"
+                : "bg-rose-600 text-white shadow-md animate-pulse hover:bg-rose-700"
               : "bg-[#17201c] text-white hover:bg-stone-800 dark:bg-[#c8ee63] dark:text-[#17201c] dark:hover:bg-[#b8de53]"
           }`}
           aria-label={
@@ -155,7 +197,7 @@ export function VoiceController({
         >
           {isListening ? (
             <>
-              <MicOff className="size-4 animate-bounce" />
+              <MicOff className="size-4" />
               <span>
                 {isSpeaking ? labels.speakingMuted : labels.listeningText}
               </span>
