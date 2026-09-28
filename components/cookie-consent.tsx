@@ -31,17 +31,76 @@ export function CookieConsent({
 
   useEffect(() => {
     setMounted(true);
+
+    // Sprawdź, czy użytkownik dokonał już wcześniej wyboru
+    try {
+      const savedConsent = localStorage.getItem("cookie_consent_state");
+      if (savedConsent) {
+        onClose(); // Ukryj baner, jeśli decyzja już zapadła
+        if (typeof window !== "undefined") {
+          window.dataLayer = window.dataLayer || [];
+          if (savedConsent === "accepted") {
+            window.dataLayer.push({
+              event: "cookie_consent_accepted",
+              analytics_storage: "granted",
+            });
+          } else {
+            window.dataLayer.push({
+              event: "cookie_consent_rejected",
+              analytics_storage: "denied",
+            });
+          }
+        }
+      }
+    } catch {
+      // Ignoruj błąd dostępu do localStorage
+    }
+
     const onScroll = () => {
       setShowTop(window.scrollY > 250);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [onClose]);
 
   const handleAccept = () => {
+    try {
+      localStorage.setItem("cookie_consent_state", "accepted");
+    } catch {
+      // Ignoruj
+    }
+
     if (typeof window !== "undefined") {
       window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({ event: "cookie_consent_accepted" });
+      // Google Consent Mode v2 & Zdarzenie GTM
+      window.dataLayer.push({
+        event: "cookie_consent_accepted",
+        analytics_storage: "granted",
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+      });
+    }
+    onClose();
+  };
+
+  const handleReject = () => {
+    try {
+      localStorage.setItem("cookie_consent_state", "rejected");
+    } catch {
+      // Ignoruj
+    }
+
+    if (typeof window !== "undefined") {
+      window.dataLayer = window.dataLayer || [];
+      // Odmowa dla analityki i marketingu
+      window.dataLayer.push({
+        event: "cookie_consent_rejected",
+        analytics_storage: "denied",
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+      });
     }
     onClose();
   };
@@ -66,7 +125,7 @@ export function CookieConsent({
           <div className="flex shrink-0 gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleReject}
               className="rounded-xl border border-stone-300 bg-stone-100 px-4 py-2 text-xs font-semibold text-stone-800 hover:bg-stone-200 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
             >
               {rejectText}
