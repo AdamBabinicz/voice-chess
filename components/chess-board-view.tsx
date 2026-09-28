@@ -92,9 +92,9 @@ export function ChessBoardView({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full min-h-[300px] sm:min-h-[420px]">
       <div
-        className="relative aspect-square w-full overflow-hidden rounded-2xl border border-[#cad7c5] dark:border-[#334238] shadow-inner bg-[#eef4e8]"
+        className="relative aspect-square w-full h-auto min-w-0 overflow-hidden rounded-2xl border border-[#cad7c5] dark:border-[#334238] shadow-inner bg-[#eef4e8]"
         role="region"
         aria-label={
           lang === "pl" ? "Interaktywna szachownica" : "Interactive chess board"
@@ -115,7 +115,7 @@ export function ChessBoardView({
                   onClick={() => onSquareClick(i)}
                   aria-label={getSquareAriaLabel(squareName, piece)}
                   className={cn(
-                    "relative flex h-full w-full aspect-square items-center justify-center overflow-hidden p-0.5 select-none focus:outline-none focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-[#a4d847] focus-visible:ring-inset transition-colors cursor-pointer",
+                    "relative flex h-full w-full items-center justify-center overflow-hidden p-0.5 select-none focus:outline-none focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-[#a4d847] focus-visible:ring-inset transition-colors cursor-pointer",
                     isLight ? "bg-[#eef4e8]" : "bg-[#a8c283]",
                     isSelected &&
                       "ring-4 ring-inset ring-[#d5f57b] bg-[#dcf0a5]",
@@ -159,8 +159,8 @@ export function ChessBoardView({
         )}
       </div>
 
-      {/* Board Footnote / Coordinates */}
-      <div className="mt-3 flex justify-between text-[10px] font-bold tracking-widest text-[#3c4a41] dark:text-[#cbd5e1]">
+      {/* Board Footnote / Coordinates - Stała wysokość h-4 zapobiega jakimkolwiek przesunięciom */}
+      <div className="mt-3 flex h-4 items-center justify-between text-[10px] font-bold tracking-widest text-[#3c4a41] dark:text-[#cbd5e1]">
         <span>A B C D E F G H</span>
         <span>{labels.hint}</span>
       </div>
