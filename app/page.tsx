@@ -8,7 +8,6 @@ import { Chess, Square } from "chess.js";
 import { Button } from "@/components/ui/button";
 import { ChessBoardView } from "@/components/chess-board-view";
 import { CoachPanel } from "@/components/coach-panel";
-import { VoiceController } from "@/components/voice-controller";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import {
@@ -20,17 +19,17 @@ import {
   MaterialScore,
   TACTICAL_PUZZLES,
 } from "@/lib/chess-coach-engine";
-import {
-  playCaptureSound,
-  playCheckSound,
-  playIllegalSound,
-  playMoveSound,
-  playVictorySound,
-} from "@/lib/audio-effects";
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
-// Optymalizacja TBT / Chunks: Leniwe ładowanie komponentów spoza widoku (below-the-fold i modale)
+// Leniwe ładowanie kontrolera mowy (odciąża główny wątek przy starcie)
+const VoiceController = dynamic(
+  () =>
+    import("@/components/voice-controller").then((mod) => mod.VoiceController),
+  { ssr: false },
+);
+
+// Leniwe ładowanie komponentów spoza pierwszego ekranu (below-the-fold i modale)
 const TacticsSection = dynamic(
   () =>
     import("@/components/tactics-section").then((mod) => mod.TacticsSection),
@@ -51,6 +50,22 @@ const CookieConsent = dynamic(
   () => import("@/components/cookie-consent").then((mod) => mod.CookieConsent),
   { ssr: false },
 );
+
+// Bezpieczne, dynamiczne odtwarzanie efektów dźwiękowych (nie blokuje ładowania strony)
+const playSound = async (
+  type: "move" | "capture" | "check" | "victory" | "illegal",
+) => {
+  try {
+    const audio = await import("@/lib/audio-effects");
+    if (type === "move") audio.playMoveSound();
+    else if (type === "capture") audio.playCaptureSound();
+    else if (type === "check") audio.playCheckSound();
+    else if (type === "victory") audio.playVictorySound();
+    else if (type === "illegal") audio.playIllegalSound();
+  } catch {
+    // Ignoruj błąd odtwarzania
+  }
+};
 
 type LegalType = "privacy" | "terms" | null;
 
@@ -145,7 +160,7 @@ export default function Page() {
 
     setIsResigned(true);
     setSelected(null);
-    playVictorySound();
+    playSound("victory");
 
     const resignText = t.resignedMsg;
     setCoachInsight(resignText);
@@ -204,13 +219,13 @@ export default function Page() {
       setMaterial(calculateMaterialBalance(gameInstance, lang));
 
       if (gameInstance.isCheckmate()) {
-        playVictorySound();
+        playSound("victory");
       } else if (gameInstance.inCheck()) {
-        playCheckSound();
+        playSound("check");
       } else if (reply.captured) {
-        playCaptureSound();
+        playSound("capture");
       } else {
-        playMoveSound();
+        playSound("move");
       }
 
       const replyAnalysis = generateCoachInsight(
@@ -229,7 +244,6 @@ export default function Page() {
   };
 
   const applyMove = (notation: string | { from: string; to: string }) => {
-    // 0. Obsługa komendy głosowej "RESIGN"
     if (typeof notation === "string" && notation === "RESIGN") {
       handleResign();
       return;
@@ -269,13 +283,13 @@ export default function Page() {
       }
 
       if (gameInstance.isCheckmate()) {
-        playVictorySound();
+        playSound("victory");
       } else if (gameInstance.inCheck()) {
-        playCheckSound();
+        playSound("check");
       } else if (result.captured) {
-        playCaptureSound();
+        playSound("capture");
       } else {
-        playMoveSound();
+        playSound("move");
       }
 
       const updatedBoard = [...gameInstance.board()];
@@ -295,7 +309,7 @@ export default function Page() {
         lastValidCoachInsightRef.current = puzzleCheck.insight;
 
         if (puzzleCheck.isCorrect) {
-          playVictorySound();
+          playSound("victory");
           setActivePuzzle(null);
         }
 
@@ -324,7 +338,7 @@ export default function Page() {
         }, 800);
       }
     } catch {
-      playIllegalSound();
+      playSound("illegal");
       const err = t.illegalMoveMsg;
       setCoachInsight(err);
       announce(err);
@@ -383,7 +397,7 @@ export default function Page() {
     setSelected(null);
     setActivePuzzle(null);
     setMaterial(calculateMaterialBalance(gameInstance, lang));
-    playMoveSound();
+    playSound("move");
 
     const displayText = t.newGameIntroText;
     setCoachInsight(displayText);
@@ -414,7 +428,7 @@ export default function Page() {
       setMoves([...gameInstance.history()]);
       setSelected(null);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
-      playMoveSound();
+      playSound("move");
 
       const undoText = t.undoTextMsg;
       setCoachInsight(undoText);
@@ -443,7 +457,7 @@ export default function Page() {
       setSelected(null);
       setActivePuzzle(index);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
-      playMoveSound();
+      playSound("move");
 
       const hint = puzzle.hint[lang];
       setCoachInsight(hint);
@@ -491,7 +505,7 @@ export default function Page() {
         <section className="mx-auto grid max-w-[1360px] gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-16">
           <div className="max-w-xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-700/30 bg-[#eaf4d5] px-3.5 py-1.5 text-xs font-bold tracking-[0.16em] text-[#2d4e13] dark:bg-[#1f2d22] dark:text-[#bcee68]">
-              <span className="size-2 rounded-full bg-[#365314] animate-pulse" />
+              <span className="size-2 rounded-full bg-[#365314] opacity-80" />
               {t.eyebrow}
             </div>
 
@@ -556,7 +570,8 @@ export default function Page() {
           >
             <div className="mb-4 flex items-center justify-between text-xs font-bold tracking-[0.15em] text-[#2d4e13] dark:text-[#bcee68]">
               <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] animate-ping" />
+                {/* Zastąpiono nieskomponowany ping sprzętowo akcelerowaną kropką */}
+                <span className="size-2 rounded-full bg-[#2d4e13] dark:bg-[#bcee68] transition-opacity" />
                 {t.live}{" "}
                 {activePuzzle !== null &&
                   TACTICAL_PUZZLES[activePuzzle] &&
@@ -648,7 +663,7 @@ export default function Page() {
           </div>
         </section>
 
-        {/* Pasek sterowania głosem */}
+        {/* Pasek sterowania głosem (ładowany asynchronicznie) */}
         <div className="mx-auto mb-12 max-w-[1360px] px-5 sm:px-8 lg:px-12">
           <VoiceController
             lang={lang}
@@ -668,7 +683,7 @@ export default function Page() {
           />
         </div>
 
-        {/* Sekcja łamigłówek taktycznych (ładowana dynamicznie) */}
+        {/* Sekcja łamigłówek taktycznych */}
         <TacticsSection
           lang={lang}
           activePuzzle={activePuzzle}
@@ -715,7 +730,7 @@ export default function Page() {
         onOpenCookies={() => setCookies(true)}
       />
 
-      {/* Ciasteczka RODO (ładowane dynamicznie) */}
+      {/* Ciasteczka RODO */}
       <CookieConsent
         isOpen={cookies}
         onOpen={() => setCookies(true)}
@@ -731,7 +746,7 @@ export default function Page() {
         }
       />
 
-      {/* Modal ustawień (ładowany dynamicznie) */}
+      {/* Modal ustawień */}
       {settings && (
         <SettingsModal
           isOpen={settings}
@@ -767,7 +782,7 @@ export default function Page() {
         />
       )}
 
-      {/* Modal prawny (ładowany dynamicznie) */}
+      {/* Modal prawny */}
       {legal !== null && (
         <LegalModal
           type={legal}

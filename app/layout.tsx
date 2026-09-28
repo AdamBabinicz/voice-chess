@@ -1,6 +1,4 @@
-// app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import "./globals.css";
 
 // Title: dokładnie 50 znaków
@@ -89,11 +87,25 @@ export const metadata: Metadata = {
     languages: {
       pl: siteUrl,
       en: `${siteUrl}/en`,
+      "x-default": siteUrl,
+    },
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
     },
   },
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
   colorScheme: "light dark",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#166534" },
@@ -127,10 +139,16 @@ export default function RootLayout({
         alternateName: "Głosowy Trener Szachowy",
         url: siteUrl,
         description: siteDescription,
+        image: `${siteUrl}/og-image.png`,
         applicationCategory:
           "GameApplication, SportsApplication, EducationalApplication",
         operatingSystem: "All modern browsers with Web Speech API support",
         inLanguage: ["pl", "en"],
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "PLN",
+        },
         author: {
           "@id": `${siteUrl}/#author`,
         },
@@ -151,11 +169,7 @@ export default function RootLayout({
   return (
     <html lang="pl" suppressHydrationWarning>
       <head>
-        <link
-          rel="preconnect"
-          href="https://www.googletagmanager.com"
-          crossOrigin=""
-        />
+        {/* dns-prefetch rozwiązuje IP w tle bez kosztownego nawiązywania połączenia TLS */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
       </head>
       <body
@@ -172,10 +186,9 @@ export default function RootLayout({
           />
         </noscript>
 
-        {/* 1. Domyślny stan zgód Google Consent Mode v2 */}
-        <Script
-          id="gtm-consent-default"
-          strategy="beforeInteractive"
+        {/* Czysty, połączony skrypt: Consent Mode v2 + inteligentny loader opóźniony bez narzutu frameworka */}
+        <script
+          id="gtm-analytics"
           dangerouslySetInnerHTML={{
             __html: `
               window.dataLayer = window.dataLayer || [];
@@ -187,16 +200,7 @@ export default function RootLayout({
                 'ad_personalization': 'denied',
                 'wait_for_update': 500
               });
-            `,
-          }}
-        />
 
-        {/* 2. Inteligentny loader GTM (odpala przy pierwszej interakcji lub po 3.5s) */}
-        <Script
-          id="gtm-smart-loader"
-          strategy="lazyOnload"
-          dangerouslySetInnerHTML={{
-            __html: `
               (function() {
                 var loaded = false;
                 function loadGTM() {
@@ -205,18 +209,21 @@ export default function RootLayout({
                   ['scroll', 'mousemove', 'touchstart', 'keydown'].forEach(function(e) {
                     window.removeEventListener(e, loadGTM, { passive: true });
                   });
-                  window.dataLayer = window.dataLayer || [];
                   window.dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
                   var f = document.getElementsByTagName('script')[0],
                       j = document.createElement('script');
                   j.async = true;
                   j.src = 'https://www.googletagmanager.com/gtm.js?id=${GTM_ID}';
-                  f.parentNode.insertBefore(j, f);
+                  if (f && f.parentNode) {
+                    f.parentNode.insertBefore(j, f);
+                  } else {
+                    document.head.appendChild(j);
+                  }
                 }
                 ['scroll', 'mousemove', 'touchstart', 'keydown'].forEach(function(e) {
                   window.addEventListener(e, loadGTM, { passive: true, once: true });
                 });
-                setTimeout(loadGTM, 3500);
+                setTimeout(loadGTM, 5000);
               })();
             `,
           }}

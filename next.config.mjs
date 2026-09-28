@@ -6,6 +6,14 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-}
+  poweredByHeader: false,
+  compress: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production",
+  },
+  experimental: {
+    optimizePackageImports: ["lucide-react", "@base-ui/react"],
+  },
+};
 
-export default nextConfig
+export default nextConfig;
