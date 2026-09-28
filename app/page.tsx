@@ -10,6 +10,9 @@ import { ChessBoardView } from "@/components/chess-board-view";
 import { CoachPanel } from "@/components/coach-panel";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { VoiceController } from "@/components/voice-controller";
+import { TacticsSection } from "@/components/tactics-section";
+import { CookieConsent } from "@/components/cookie-consent";
 import {
   calculateMaterialBalance,
   evaluateTacticalPuzzle,
@@ -22,20 +25,7 @@ import {
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
-// Leniwe ładowanie kontrolera mowy (odciąża główny wątek przy starcie)
-const VoiceController = dynamic(
-  () =>
-    import("@/components/voice-controller").then((mod) => mod.VoiceController),
-  { ssr: false },
-);
-
-// Leniwe ładowanie komponentów spoza pierwszego ekranu (below-the-fold i modale)
-const TacticsSection = dynamic(
-  () =>
-    import("@/components/tactics-section").then((mod) => mod.TacticsSection),
-  { ssr: false },
-);
-
+// Leniwe ładowanie wyłącznie modali (nie blokują startu ani pierwszego widoku)
 const SettingsModal = dynamic(
   () => import("@/components/settings-modal").then((mod) => mod.SettingsModal),
   { ssr: false },
@@ -43,11 +33,6 @@ const SettingsModal = dynamic(
 
 const LegalModal = dynamic(
   () => import("@/components/legal-modal").then((mod) => mod.LegalModal),
-  { ssr: false },
-);
-
-const CookieConsent = dynamic(
-  () => import("@/components/cookie-consent").then((mod) => mod.CookieConsent),
   { ssr: false },
 );
 
@@ -81,7 +66,11 @@ export default function Page() {
   const [difficulty, setDifficulty] = useState("intermediate");
   const [speed, setSpeed] = useState("1");
   const [voiceMode, setVoiceMode] = useState<"continuous" | "push">("push");
-  const [coachInsight, setCoachInsight] = useState("");
+
+  // Bezpośrednia inicjalizacja domyślnym tekstem zapobiega niepotrzebnemu re-renderowi po montowaniu
+  const [coachInsight, setCoachInsight] = useState(
+    () => translations.pl.defaultCoachText,
+  );
   const [coachMuted, setCoachMuted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
@@ -99,7 +88,9 @@ export default function Page() {
     evalText: "Równowaga materialna.",
   });
 
-  const lastValidCoachInsightRef = useRef<string>("");
+  const lastValidCoachInsightRef = useRef<string>(
+    translations.pl.defaultCoachText,
+  );
   const botTimeoutRef = useRef<number | null>(null);
   const speakCooldownTimeoutRef = useRef<number | null>(null);
   const isSpeakingRef = useRef<boolean>(false);
@@ -108,9 +99,11 @@ export default function Page() {
 
   useEffect(() => {
     const defaultText = translations[lang].defaultCoachText;
-    setCoachInsight(defaultText);
+    if (coachInsight !== defaultText) {
+      setCoachInsight(defaultText);
+    }
     lastValidCoachInsightRef.current = defaultText;
-  }, [lang]);
+  }, [lang, coachInsight]);
 
   useEffect(() => {
     if (dark) {
@@ -525,7 +518,7 @@ export default function Page() {
       />
 
       <main id="top">
-        {/* Sekcja Hero */}
+        {/* Sekcja Hero - renderowana w całości w czystym SSR */}
         <section className="mx-auto grid max-w-[1360px] gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-16">
           <div className="max-w-xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-700/30 bg-[#eaf4d5] px-3.5 py-1.5 text-xs font-bold tracking-[0.16em] text-[#2d4e13] dark:bg-[#1f2d22] dark:text-[#bcee68]">
@@ -691,7 +684,7 @@ export default function Page() {
           </div>
         </section>
 
-        {/* Pasek sterowania głosem (ładowany asynchronicznie) */}
+        {/* Pasek sterowania głosem */}
         <div className="mx-auto mb-12 max-w-[1360px] px-5 sm:px-8 lg:px-12">
           <VoiceController
             lang={lang}
