@@ -150,6 +150,20 @@ export default function RootLayout({
 
   return (
     <html lang="pl" suppressHydrationWarning>
+      <head>
+        <link
+          rel="preconnect"
+          href="https://www.googletagmanager.com"
+          crossOrigin=""
+        />
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link
+          rel="preconnect"
+          href="https://www.google-analytics.com"
+          crossOrigin=""
+        />
+        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+      </head>
       <body
         suppressHydrationWarning
         className="antialiased min-h-screen bg-background text-foreground"
@@ -164,10 +178,10 @@ export default function RootLayout({
           />
         </noscript>
 
-        {/* 1. Domyślny stan zgód Google Consent Mode v2 */}
+        {/* 1. Domyślny stan zgód Google Consent Mode v2 (błyskawiczny, lekki inline) */}
         <Script
           id="gtm-consent-default"
-          strategy="afterInteractive"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               window.dataLayer = window.dataLayer || [];
@@ -183,10 +197,10 @@ export default function RootLayout({
           }}
         />
 
-        {/* 2. Główny kontener Google Tag Manager */}
+        {/* 2. Główny kontener Google Tag Manager - opóźniony do lazyOnload (nie blokuje LCP/FCP) */}
         <Script
           id="gtm-loader"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           dangerouslySetInnerHTML={{
             __html: `
               (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
