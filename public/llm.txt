@@ -1,5 +1,5 @@
 # ChessTactics Audio Coach
-> Voice-first chess training web application with blindfold practice, speech recognition, and instant tactical audio feedback.
+> Voice-first, accessible chess training web application with blindfold practice, speech recognition, and instant tactical audio feedback.
 
 ## Overview
 ChessTactics Audio Coach enables visually impaired players, blindfold practitioners, and hands-free chess students to play chess, solve tactical puzzles, and receive pedagogical coaching using natural voice commands in English and Polish.
@@ -12,8 +12,9 @@ ChessTactics Audio Coach enables visually impaired players, blindfold practition
 - Tactical Puzzles: Curated tactical training positions (Knight Forks, Back Rank Mate, Absolute Pins, Skewers, Discovered Attacks).
 - Accessibility: 100% WCAG 2.1 AA compliant, screen-reader friendly, and keyboard operable.
 
-## Links & Navigation
+## Links & Documentation
 - Main Application: https://chesstactics-audio.netlify.app/
 - Source Code: https://github.com/AdamBabinicz/voice-chess
-- Privacy Policy: https://chesstactics-audio.netlify.app/
-- Terms of Service: https://chesstactics-audio.netlify.app/
+- LLM Full Reference: https://chesstactics-audio.netlify.app/llms-full.txt
+- Sitemap: https://chesstactics-audio.netlify.app/sitemap.xml
+- Web App Manifest: https://chesstactics-audio.netlify.app/site.webmanifest
