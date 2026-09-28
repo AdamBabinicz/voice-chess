@@ -59,6 +59,8 @@ export interface TranslationSchema {
   backTop: string;
   newGameBtn: string;
   undoBtn: string;
+  resignBtn: string;
+  resignedMsg: string;
   listeningText: string;
   startVoiceText: string;
   speakingMuted: string;
@@ -136,6 +138,9 @@ export const translations: Record<Lang, TranslationSchema> = {
     backTop: "Scroll to top",
     newGameBtn: "New game",
     undoBtn: "Undo",
+    resignBtn: "Resign",
+    resignedMsg:
+      "You resigned the game. Black wins by resignation. Every loss is a valuable lesson — start a fresh game!",
     listeningText: "Listening... Say a move like “e4” or “castle”",
     startVoiceText: "Start voice input",
     speakingMuted: "Coach speaking... (mic muted)",
@@ -212,6 +217,9 @@ export const translations: Record<Lang, TranslationSchema> = {
     backTop: "Wróć na górę",
     newGameBtn: "Nowa partia",
     undoBtn: "Cofnij",
+    resignBtn: "Poddaj się",
+    resignedMsg:
+      "Poddajesz partię. Czarne wygrywają przez rezygnację. Głowa do góry — każda porażka to cenna lekcja! Rozpocznijmy nową partię.",
     listeningText:
       "Słucham... Wypowiedz ruch (np. „e4”, „skoczek f3”, „roszada”)",
     startVoiceText: "Rozpocznij nasłuch głosu",

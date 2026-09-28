@@ -71,6 +71,7 @@ export default function Page() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [activePuzzle, setActivePuzzle] = useState<number | null>(null);
+  const [isResigned, setIsResigned] = useState(false);
 
   const [gameInstance] = useState(() => new Chess());
   const [turn, setTurn] = useState<"w" | "b">("w");
@@ -134,6 +135,24 @@ export default function Page() {
     }
   };
 
+  const handleResign = () => {
+    if (isResigned || gameInstance.isGameOver()) return;
+
+    if (botTimeoutRef.current) {
+      window.clearTimeout(botTimeoutRef.current);
+      botTimeoutRef.current = null;
+    }
+
+    setIsResigned(true);
+    setSelected(null);
+    playVictorySound();
+
+    const resignText = t.resignedMsg;
+    setCoachInsight(resignText);
+    lastValidCoachInsightRef.current = resignText;
+    announce(resignText);
+  };
+
   const speakBlindfoldStatus = () => {
     const statusText = generateBlindfoldStatus(gameInstance, lang);
     setCoachInsight(statusText);
@@ -172,7 +191,7 @@ export default function Page() {
   };
 
   const executeComputerResponse = () => {
-    if (gameInstance.isGameOver()) return;
+    if (gameInstance.isGameOver() || isResigned) return;
 
     try {
       const bestMove = findBestEngineMove(gameInstance, difficulty);
@@ -210,6 +229,14 @@ export default function Page() {
   };
 
   const applyMove = (notation: string | { from: string; to: string }) => {
+    // 0. Obsługa komendy głosowej "RESIGN"
+    if (typeof notation === "string" && notation === "RESIGN") {
+      handleResign();
+      return;
+    }
+
+    if (isResigned) return;
+
     try {
       if (botTimeoutRef.current) {
         window.clearTimeout(botTimeoutRef.current);
@@ -310,6 +337,8 @@ export default function Page() {
   };
 
   const handleSquareClick = (i: number) => {
+    if (isResigned || gameInstance.isGameOver()) return;
+
     const rowIndex = Math.floor(i / 8);
     const columnIndex = i % 8;
     const clickedSquare =
@@ -346,6 +375,7 @@ export default function Page() {
     }
 
     gameInstance.reset();
+    setIsResigned(false);
     setBoard([...gameInstance.board()]);
     setTurn(gameInstance.turn());
     setMoves([]);
@@ -362,6 +392,8 @@ export default function Page() {
   };
 
   const undoMove = () => {
+    if (isResigned) return;
+
     try {
       if (botTimeoutRef.current) {
         window.clearTimeout(botTimeoutRef.current);
@@ -403,6 +435,7 @@ export default function Page() {
 
     try {
       gameInstance.load(puzzle.fen);
+      setIsResigned(false);
       setBoard([...gameInstance.board()]);
       setTurn(gameInstance.turn());
       setMoves([]);
@@ -429,6 +462,8 @@ export default function Page() {
       }
     }
   };
+
+  const isGameOverState = isResigned || gameInstance.isGameOver();
 
   return (
     <div
@@ -566,6 +601,8 @@ export default function Page() {
                 material={material}
                 onUndoMove={undoMove}
                 onNewGame={newGame}
+                onResign={handleResign}
+                isGameOver={isGameOverState}
                 labels={{
                   coach: t.coach,
                   muteCoach: t.muteCoach,
@@ -581,6 +618,7 @@ export default function Page() {
                   listen: t.listen,
                   undoBtn: t.undoBtn,
                   newGameBtn: t.newGameBtn,
+                  resignBtn: t.resignBtn,
                 }}
               />
             </div>
@@ -619,6 +657,7 @@ export default function Page() {
             labels={{
               listeningText: t.listeningText,
               startVoiceText: t.startVoiceText,
+              speakingMuted: t.speakingMuted,
               inputPlaceholder: t.inputPlaceholder,
               submitMoveText: t.submitMoveText,
               unsupportedSpeech: t.unsupportedSpeech,

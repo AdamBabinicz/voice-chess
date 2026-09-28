@@ -3,6 +3,7 @@
 
 import {
   AudioLines,
+  Flag,
   Headphones,
   Loader2,
   Sparkles,
@@ -26,6 +27,8 @@ interface CoachPanelProps {
   material: MaterialScore;
   onUndoMove: () => void;
   onNewGame: () => void;
+  onResign: () => void;
+  isGameOver: boolean;
   labels: {
     coach: string;
     muteCoach: string;
@@ -41,6 +44,7 @@ interface CoachPanelProps {
     listen: string;
     undoBtn: string;
     newGameBtn: string;
+    resignBtn: string;
   };
 }
 
@@ -58,6 +62,8 @@ export function CoachPanel({
   material,
   onUndoMove,
   onNewGame,
+  onResign,
+  isGameOver,
   labels,
 }: CoachPanelProps) {
   return (
@@ -185,12 +191,23 @@ export function CoachPanel({
         </div>
       </div>
 
-      {/* Przyciski Cofnij i Nowa partia */}
+      {/* Przyciski: Poddaj się, Cofnij i Nowa partia */}
       <div className="flex items-center gap-2 pt-1">
         <button
           type="button"
+          onClick={onResign}
+          disabled={moves.length === 0 || isGameOver}
+          title={labels.resignBtn}
+          aria-label={labels.resignBtn}
+          className="flex items-center justify-center gap-1 rounded-xl border border-rose-300/80 px-2.5 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-30 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+        >
+          <Flag className="size-3.5" />
+          <span className="hidden sm:inline">{labels.resignBtn}</span>
+        </button>
+        <button
+          type="button"
           onClick={onUndoMove}
-          disabled={moves.length === 0}
+          disabled={moves.length === 0 || isGameOver}
           className="flex-1 rounded-xl border border-stone-400 py-1.5 text-xs font-semibold text-stone-800 hover:bg-stone-100 disabled:opacity-40 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
         >
           {labels.undoBtn}

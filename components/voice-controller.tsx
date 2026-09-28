@@ -13,6 +13,7 @@ interface VoiceControllerProps {
   labels: {
     listeningText: string;
     startVoiceText: string;
+    speakingMuted: string;
     inputPlaceholder: string;
     submitMoveText: string;
     unsupportedSpeech: string;
@@ -156,9 +157,7 @@ export function VoiceController({
             <>
               <MicOff className="size-4 animate-bounce" />
               <span>
-                {isSpeaking
-                  ? "Lektor mówi... (mikrofon wyciszony)"
-                  : labels.listeningText}
+                {isSpeaking ? labels.speakingMuted : labels.listeningText}
               </span>
             </>
           ) : (
@@ -204,6 +203,23 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     .replace(/[.,!?;:]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  // 0. Komendy poddania się (Rezygnacja)
+  if (
+    clean === "poddaje sie" ||
+    clean === "poddaję się" ||
+    clean.includes("poddaje sie") ||
+    clean.includes("poddaję się") ||
+    clean.includes("poddaje partie") ||
+    clean.includes("poddaję partię") ||
+    clean.includes("rezygnuje") ||
+    clean.includes("rezygnuję") ||
+    clean === "resign" ||
+    clean.includes("i resign") ||
+    clean.includes("surrender")
+  ) {
+    return "RESIGN";
+  }
 
   // 1. Roszady
   if (
