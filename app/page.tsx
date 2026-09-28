@@ -26,7 +26,7 @@ import { stockfishService } from "@/lib/stockfish-service";
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
-// Leniwe ładowanie wyłącznie modali (nie blokują startu ani krytycznego renderowania LCP)
+// Leniwe ładowanie wyłącznie modali (nie blokują startu ani pierwszego widoku)
 const SettingsModal = dynamic(
   () => import("@/components/settings-modal").then((mod) => mod.SettingsModal),
   { ssr: false },
@@ -49,7 +49,7 @@ const playSound = async (
     else if (type === "victory") audio.playVictorySound();
     else if (type === "illegal") audio.playIllegalSound();
   } catch {
-    // Ignoruj błąd odtwarzania audio w przeglądarkach blokujących autoplay
+    // Ignoruj błąd odtwarzania w przeglądarkach blokujących autoplay
   }
 };
 
@@ -141,12 +141,12 @@ export default function Page() {
           };
 
           const handleFinish = () => {
-            // Bezpieczny bufor 600ms po zakończeniu mowy na wygaszenie echa w mikrofonie
+            // Skrócony, zoptymalizowany bufor 150ms po zakończeniu głosu (eliminuje sztuczne opóźnienie)
             speakCooldownTimeoutRef.current = window.setTimeout(() => {
               isSpeakingRef.current = false;
               setIsSpeaking(false);
               if (onComplete) onComplete();
-            }, 600);
+            }, 150);
           };
 
           utterance.onend = handleFinish;
@@ -405,15 +405,17 @@ export default function Page() {
       }
 
       if (!coachMuted) {
+        // Błyskawiczna odpowiedź czarnych (100 ms) zaraz po zakończeniu głosu trenera
         announce(playerAnalysis.audioText, () => {
           botTimeoutRef.current = window.setTimeout(() => {
             executeComputerResponse();
-          }, 500);
+          }, 100);
         });
       } else {
+        // W trybie wyciszonym naturalne, dynamiczne tempo odpowiedzi (300 ms)
         botTimeoutRef.current = window.setTimeout(() => {
           executeComputerResponse();
-        }, 800);
+        }, 300);
       }
     } catch {
       playSound("illegal");
