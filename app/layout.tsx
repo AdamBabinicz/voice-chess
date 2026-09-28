@@ -149,11 +149,24 @@ export default function RootLayout({
 
   return (
     <html lang="pl" suppressHydrationWarning>
-      <head>
-        {/* Inicjalizacja domyślnego stanu zgody Google Consent Mode v2 */}
+      <body
+        suppressHydrationWarning
+        className="antialiased min-h-screen bg-background text-foreground"
+      >
+        {/* Google Tag Manager (noscript fallback) */}
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+            height="0"
+            width="0"
+            style={{ display: "none", visibility: "hidden" }}
+          />
+        </noscript>
+
+        {/* 1. Domyślny stan zgód Google Consent Mode v2 */}
         <Script
           id="gtm-consent-default"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               window.dataLayer = window.dataLayer || [];
@@ -169,9 +182,9 @@ export default function RootLayout({
           }}
         />
 
-        {/* Optymalny skrypt Google Tag Manager dla Next.js */}
+        {/* 2. Główny kontener Google Tag Manager */}
         <Script
-          id="gtm-script"
+          id="gtm-loader"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
@@ -183,19 +196,6 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>
-      <body
-        suppressHydrationWarning
-        className="antialiased min-h-screen bg-background text-foreground"
-      >
-        {/* Google Tag Manager (noscript fallback) */}
-        <noscript>
-          <iframe
-            src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-            height="0"
-            width="0"
-          />
-        </noscript>
 
         {/* Schema.org Structured Data */}
         <script
