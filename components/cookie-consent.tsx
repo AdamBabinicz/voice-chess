@@ -33,29 +33,35 @@ export function CookieConsent({
   useEffect(() => {
     setMounted(true);
 
-    // Wykonaj sprawdzenie localStorage TYLKO RAZ przy starcie aplikacji
+    // Wykonaj sprawdzenie localStorage TYLKO RAZ przy montowaniu aplikacji
     if (!initialCheckDone.current) {
       initialCheckDone.current = true;
       try {
         const savedConsent = localStorage.getItem("cookie_consent_state");
         if (savedConsent) {
-          // Jeśli decyzja już była podjęta wcześniej, zamknij domyślnie otwarty baner
-          onClose();
+          onClose(); // Ukryj domyślnie otwarty baner
 
-          // I przekaż stan do Google Consent Mode
           if (
             typeof window !== "undefined" &&
             typeof window.gtag === "function"
           ) {
             if (savedConsent === "accepted") {
+              // Pełna zgoda przyznana wcześniej
               window.gtag("consent", "update", {
                 analytics_storage: "granted",
+                ad_storage: "granted",
+                ad_user_data: "granted",
+                ad_personalization: "granted",
               });
               window.dataLayer = window.dataLayer || [];
               window.dataLayer.push({ event: "cookie_consent_accepted" });
             } else {
+              // Odmowa zapisana wcześniej
               window.gtag("consent", "update", {
                 analytics_storage: "denied",
+                ad_storage: "denied",
+                ad_user_data: "denied",
+                ad_personalization: "denied",
               });
               window.dataLayer = window.dataLayer || [];
               window.dataLayer.push({ event: "cookie_consent_rejected" });
@@ -82,17 +88,17 @@ export function CookieConsent({
     }
 
     if (typeof window !== "undefined") {
-      // 1. Google Consent Mode v2 update
+      // 1. Oficjalna aktualizacja Google Consent Mode v2 - pełna zgoda na wszystkie rodzaje
       if (typeof window.gtag === "function") {
         window.gtag("consent", "update", {
           analytics_storage: "granted",
-          ad_storage: "denied",
-          ad_user_data: "denied",
-          ad_personalization: "denied",
+          ad_storage: "granted",
+          ad_user_data: "granted",
+          ad_personalization: "granted",
         });
       }
 
-      // 2. DataLayer event
+      // 2. Wysłanie zdarzenia do warstwy dataLayer dla GTM
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
         event: "cookie_consent_accepted",
@@ -109,6 +115,7 @@ export function CookieConsent({
     }
 
     if (typeof window !== "undefined") {
+      // Pełna odmowa
       if (typeof window.gtag === "function") {
         window.gtag("consent", "update", {
           analytics_storage: "denied",
@@ -130,7 +137,7 @@ export function CookieConsent({
 
   return (
     <>
-      {/* Baner zgód - z-[9999] gwarantuje, że pojawi się ponad widżetem Tag Assistanta */}
+      {/* Baner zgód - z-[9999] gwarantuje widoczność nad nakładkami debugera */}
       {isOpen && (
         <div className="fixed inset-x-4 bottom-4 z-[9999] flex flex-col gap-4 rounded-2xl border border-[#d5e1d0] bg-white p-5 shadow-2xl dark:border-[#334238] dark:bg-[#1d2820] sm:inset-x-auto sm:right-6 sm:max-w-xl sm:flex-row sm:items-center animate-in fade-in slide-in-from-bottom-4 duration-200">
           <p className="flex-1 text-xs text-[#2a362f] dark:text-[#e2e8f0] sm:text-sm">
