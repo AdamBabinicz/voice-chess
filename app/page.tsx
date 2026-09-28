@@ -327,12 +327,13 @@ export default function Page() {
       playIllegalSound();
       const err = t.illegalMoveMsg;
       setCoachInsight(err);
+      announce(err);
 
       window.setTimeout(() => {
         if (lastValidCoachInsightRef.current) {
           setCoachInsight(lastValidCoachInsightRef.current);
         }
-      }, 2200);
+      }, 3000);
     }
   };
 
