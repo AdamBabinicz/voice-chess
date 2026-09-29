@@ -1,5 +1,8 @@
+// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: false, // Wyłącza podwójne renderowanie komponentów w trybie dev
+  turbopack: {}, // Wycisza konflikt konfiguracji z Turbopackiem w Next.js 16
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -13,19 +16,11 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === "production",
   },
   experimental: {
-    optimizePackageImports: ["lucide-react", "@base-ui/react", "chess.js"],
+    // Tylko biblioteki ikonowe – usunięto chess.js, który w devie powodował błędy rozbijania modułów
+    optimizePackageImports: ["lucide-react"],
   },
   async headers() {
     return [
-      {
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
       {
         source: "/(favicon.*|apple-touch-icon.*|site.webmanifest)",
         headers: [
@@ -42,7 +37,6 @@ const nextConfig = {
       config.target = ["web", "es2022"];
       config.resolve.alias = {
         ...config.resolve.alias,
-        // Zastąpienie wewnętrznego polyfillera Next.js pustym modułem (likwiduje 13 KB Legacy JS w PageSpeed)
         "next/dist/build/polyfills/polyfill-module": false,
         "@next/polyfill-module": false,
       };

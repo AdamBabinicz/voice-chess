@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { ChevronRight, EyeOff, Headphones, Play } from "lucide-react";
-import { Chess, Square } from "chess.js";
+import { Chess, Move, Square } from "chess.js";
 import { Button } from "@/components/ui/button";
 import { ChessBoardView } from "@/components/chess-board-view";
 import { CoachPanel } from "@/components/coach-panel";
@@ -26,7 +26,7 @@ import { stockfishService } from "@/lib/stockfish-service";
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
-// Leniwe ładowanie wyłącznie modali (nie blokują startu ani pierwszego widoku)
+// Leniwe ładowanie modali (nie blokują LCP)
 const SettingsModal = dynamic(
   () => import("@/components/settings-modal").then((mod) => mod.SettingsModal),
   { ssr: false },
@@ -37,7 +37,6 @@ const LegalModal = dynamic(
   { ssr: false },
 );
 
-// Bezpieczne, dynamiczne odtwarzanie efektów dźwiękowych
 const playSound = async (
   type: "move" | "capture" | "check" | "victory" | "illegal",
 ) => {
@@ -68,11 +67,24 @@ export default function Page() {
   const [speed, setSpeed] = useState("1");
   const [voiceMode, setVoiceMode] = useState<"continuous" | "push">("push");
 
-  // Bezpośrednia inicjalizacja domyślnym tekstem zapobiega niepotrzebnemu re-renderowi po montowaniu
-  const [coachInsight, setCoachInsight] = useState(
+  const [coachInsight, setCoachInsight] = useState<string>(
     () => translations.pl.defaultCoachText,
   );
-  const [coachMuted, setCoachMuted] = useState(false);
+
+  const [coachMuted, setCoachMutedState] = useState(false);
+  // Natychmiastowa referencja wyciszenia – odporna na opóźnienia i asynchroniczność
+  const coachMutedRef = useRef(false);
+
+  const setCoachMuted = useCallback((muted: boolean) => {
+    coachMutedRef.current = muted;
+    setCoachMutedState(muted);
+    if (muted && typeof window !== "undefined") {
+      window.speechSynthesis?.cancel();
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
+    }
+  }, []);
+
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [activePuzzle, setActivePuzzle] = useState<number | null>(null);
@@ -98,14 +110,7 @@ export default function Page() {
 
   const t = translations[lang];
 
-  useEffect(() => {
-    const defaultText = translations[lang].defaultCoachText;
-    if (coachInsight !== defaultText) {
-      setCoachInsight(defaultText);
-    }
-    lastValidCoachInsightRef.current = defaultText;
-  }, [lang, coachInsight]);
-
+  // Tryb ciemny
   useEffect(() => {
     if (dark) {
       document.documentElement.classList.add("dark");
@@ -116,7 +121,8 @@ export default function Page() {
 
   const announce = useCallback(
     (message: string, onComplete?: () => void) => {
-      if (coachMuted) {
+      // Zawsze sprawdzamy aktualną referencję coachMutedRef
+      if (coachMutedRef.current) {
         if (onComplete) onComplete();
         return;
       }
@@ -135,22 +141,49 @@ export default function Page() {
           utterance.lang = lang === "pl" ? "pl-PL" : "en-US";
           utterance.rate = Number(speed);
 
-          utterance.onstart = () => {
-            isSpeakingRef.current = true;
-            setIsSpeaking(true);
-          };
+          let hasCompleted = false;
+          let safetyTimer: number | null = null;
 
           const handleFinish = () => {
-            // Zoptymalizowany bufor 150ms po zakończeniu mowy (brak kolizji z mikrofonem)
+            if (hasCompleted) return;
+            hasCompleted = true;
+
+            if (safetyTimer) {
+              window.clearTimeout(safetyTimer);
+              safetyTimer = null;
+            }
+
             speakCooldownTimeoutRef.current = window.setTimeout(() => {
               isSpeakingRef.current = false;
               setIsSpeaking(false);
               if (onComplete) onComplete();
-            }, 150);
+            }, 100);
+          };
+
+          utterance.onstart = () => {
+            if (coachMutedRef.current) {
+              window.speechSynthesis.cancel();
+              handleFinish();
+              return;
+            }
+            isSpeakingRef.current = true;
+            setIsSpeaking(true);
           };
 
           utterance.onend = handleFinish;
           utterance.onerror = handleFinish;
+
+          // Watchdog dla Windows Chromium w razie braku zdarzenia onend
+          const rateMultiplier = Number(speed) || 1;
+          const estimatedDuration =
+            Math.max(2500, ((message.length / 8) * 1000) / rateMultiplier) +
+            1200;
+
+          safetyTimer = window.setTimeout(() => {
+            if (!hasCompleted) {
+              handleFinish();
+            }
+          }, estimatedDuration);
 
           window.speechSynthesis.speak(utterance);
         } catch {
@@ -162,7 +195,7 @@ export default function Page() {
         if (onComplete) onComplete();
       }
     },
-    [coachMuted, lang, speed],
+    [lang, speed],
   );
 
   const handleResign = () => {
@@ -190,52 +223,70 @@ export default function Page() {
     announce(statusText);
   };
 
-  // Głęboka analiza: w pierwszej kolejności korzysta z lokalnego Stockfisha (0 opóźnienia sieciowego)
   const handleDeepAiAnalysis = async () => {
     if (isAnalyzingAi) return;
     setIsAnalyzingAi(true);
 
     try {
-      // 1. Arcymistrzowska analiza Stockfisha prosto z Web Workera
-      const stockfishEval = await stockfishService.evaluatePosition(
-        gameInstance.fen(),
-        12,
-      );
+      const fen = gameInstance.fen();
 
-      if (stockfishEval) {
-        const coachMsg = stockfishService.generateEvaluationCoachText(
-          stockfishEval,
-          gameInstance.turn() === "w",
-          lang,
-        );
-        setCoachInsight(coachMsg.insight);
-        lastValidCoachInsightRef.current = coachMsg.insight;
-        announce(coachMsg.audioText);
-        setIsAnalyzingAi(false);
-        return;
-      }
-
-      // 2. Fallback do endpointu API, jeśli dostępny
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fen: gameInstance.fen(),
-          history: gameInstance.history(),
-          lang,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.insight) {
-          setCoachInsight(data.insight);
-          lastValidCoachInsightRef.current = data.insight;
-          announce(data.audioText || data.insight);
+      // 1. Stockfish z limitem 500 ms
+      try {
+        const sfResult = await stockfishService.evaluatePosition(fen, 10);
+        if (sfResult) {
+          const coachMsg = stockfishService.generateEvaluationCoachText(
+            sfResult,
+            gameInstance.turn() === "w",
+            lang,
+          );
+          setCoachInsight(coachMsg.insight);
+          lastValidCoachInsightRef.current = coachMsg.insight;
+          announce(coachMsg.audioText);
+          return;
         }
+      } catch (sfErr) {
+        console.warn("[ANALIZA] Stockfish fallback:", sfErr);
       }
+
+      // 2. Gemini API z AbortSignal.timeout(2500)
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(2500),
+          body: JSON.stringify({
+            fen,
+            history: gameInstance.history(),
+            lang,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.insight) {
+            setCoachInsight(data.insight);
+            lastValidCoachInsightRef.current = data.insight;
+            announce(data.audioText || data.insight);
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("[ANALIZA] API fallback:", apiErr);
+      }
+
+      // 3. Fallback natychmiastowy
+      const localEval = stockfishService.evaluateLocally(fen);
+      const coachMsg = stockfishService.generateEvaluationCoachText(
+        localEval,
+        gameInstance.turn() === "w",
+        lang,
+      );
+      setCoachInsight(coachMsg.insight);
+      lastValidCoachInsightRef.current = coachMsg.insight;
+      announce(coachMsg.audioText);
     } catch {
-      // Ignoruj błąd
+      setCoachInsight(t.undoTextMsg);
+      lastValidCoachInsightRef.current = t.undoTextMsg;
     } finally {
       setIsAnalyzingAi(false);
     }
@@ -250,58 +301,88 @@ export default function Page() {
         | { from: string; to: string; promotion?: string }
         | null = null;
 
-      // Zapytanie Stockfisha z limitem czasu 1200ms (dla poziomu master i intermediate)
+      // 1. Próba silnika z Twoim targetDepth na 5 posunięć
       if (difficulty === "master" || difficulty === "intermediate") {
         try {
-          const targetDepth = difficulty === "master" ? 12 : 6;
+          const targetDepth = difficulty === "master" ? 10 : 5;
           const stockfishPromise = stockfishService.evaluatePosition(
             gameInstance.fen(),
             targetDepth,
           );
           const timeoutPromise = new Promise<null>((resolve) =>
-            setTimeout(() => resolve(null), 1200),
+            setTimeout(() => resolve(null), 800),
           );
 
           const sfEval = await Promise.race([stockfishPromise, timeoutPromise]);
 
           if (sfEval) {
             if (sfEval.from && sfEval.to) {
+              const from = sfEval.from.toLowerCase();
+              const to = sfEval.to.toLowerCase();
+              const piece = gameInstance.get(from as Square);
+              const isPromo =
+                piece?.type === "p" &&
+                ((from[1] === "7" && to[1] === "8") ||
+                  (from[1] === "2" && to[1] === "1"));
+
               chosenMove = {
-                from: sfEval.from,
-                to: sfEval.to,
-                promotion: sfEval.promotion || "q",
+                from,
+                to,
+                ...(isPromo ? { promotion: sfEval.promotion || "q" } : {}),
               };
             } else if (sfEval.bestMove) {
               chosenMove = sfEval.bestMove;
             }
           }
         } catch {
-          // W razie niedostępności przejdź do lokalnego silnika
+          // Przejście do silnika lokalnego
         }
       }
 
-      // Fallback do wzmocnionego lokalnego silnika (księga debiutów + Minimax 4-ply + Quiescence)
+      // 2. Silnik lokalny – szybki, z księgą debiutów (~30 ms)
       if (!chosenMove) {
         const localMove = findBestEngineMove(gameInstance, difficulty);
         if (localMove) {
+          const isPromo =
+            localMove.piece === "p" &&
+            ((localMove.from[1] === "7" && localMove.to[1] === "8") ||
+              (localMove.from[1] === "2" && localMove.to[1] === "1"));
+
           chosenMove = {
             from: localMove.from,
             to: localMove.to,
-            promotion: localMove.promotion || "q",
+            ...(isPromo ? { promotion: localMove.promotion || "q" } : {}),
+          };
+        }
+      }
+
+      if (!chosenMove) {
+        const legal = gameInstance.moves({ verbose: true });
+        if (legal.length > 0) {
+          chosenMove = {
+            from: legal[0].from,
+            to: legal[0].to,
           };
         }
       }
 
       if (!chosenMove) return;
 
-      const reply =
-        typeof chosenMove === "string"
-          ? gameInstance.move(chosenMove, { strict: false })
-          : gameInstance.move({
-              from: chosenMove.from as Square,
-              to: chosenMove.to as Square,
-              promotion: chosenMove.promotion || "q",
+      let reply: Move | null = null;
+      if (typeof chosenMove === "string") {
+        try {
+          reply = gameInstance.move(chosenMove, { strict: false });
+        } catch {
+          if (chosenMove.length >= 4) {
+            reply = gameInstance.move({
+              from: chosenMove.slice(0, 2) as Square,
+              to: chosenMove.slice(2, 4) as Square,
             });
+          }
+        }
+      } else {
+        reply = gameInstance.move(chosenMove as any);
+      }
 
       if (!reply) return;
 
@@ -329,18 +410,20 @@ export default function Page() {
         false,
       );
 
+      // Trener wyświetla komentarz do ruchu czarnych
       setCoachInsight(replyAnalysis.insight);
       lastValidCoachInsightRef.current = replyAnalysis.insight;
-      announce(replyAnalysis.audioText);
-    } catch {
-      // Ignoruj
+
+      // Mówi tylko wtedy, gdy dźwięk nie jest wyciszony
+      if (!coachMutedRef.current) {
+        announce(replyAnalysis.audioText);
+      }
+    } catch (err) {
+      console.error("Błąd podczas ruchu komputera:", err);
     }
   };
 
   const applyMove = (notation: string | { from: string; to: string }) => {
-    // Ignoruj wejścia, jeśli trener aktualnie mówi
-    if (isSpeakingRef.current) return;
-
     if (typeof notation === "string" && notation === "RESIGN") {
       handleResign();
       return;
@@ -370,10 +453,22 @@ export default function Page() {
         }
       }
 
-      const result =
-        typeof finalMove === "string"
-          ? gameInstance.move(finalMove, { strict: false })
-          : gameInstance.move({ ...finalMove, promotion: "q" });
+      let result: Move | null = null;
+      if (typeof finalMove === "string") {
+        result = gameInstance.move(finalMove, { strict: false });
+      } else {
+        const piece = gameInstance.get(finalMove.from as Square);
+        const isPromotion =
+          piece?.type === "p" &&
+          ((finalMove.from[1] === "7" && finalMove.to[1] === "8") ||
+            (finalMove.from[1] === "2" && finalMove.to[1] === "1"));
+
+        result = gameInstance.move({
+          from: finalMove.from as Square,
+          to: finalMove.to as Square,
+          ...(isPromotion ? { promotion: "q" } : {}),
+        });
+      }
 
       if (!result) {
         throw new Error("Invalid move");
@@ -424,39 +519,40 @@ export default function Page() {
         lang,
         true,
       );
+
+      // Trener wyświetla wskazówkę po ruchu gracza
       setCoachInsight(playerAnalysis.insight);
       lastValidCoachInsightRef.current = playerAnalysis.insight;
 
-      // Jeśli ruch gracza zakończył partię (mat, pat, remis), NIE planujemy ruchu bota!
       if (isGameOverAfterMove) {
         announce(playerAnalysis.audioText);
         return;
       }
 
-      if (!coachMuted) {
-        // Błyskawiczna odpowiedź czarnych (100 ms) zaraz po zakończeniu głosu trenera
+      // Odpowiedź bota – natychmiast sprawdza coachMutedRef
+      if (!coachMutedRef.current) {
         announce(playerAnalysis.audioText, () => {
           botTimeoutRef.current = window.setTimeout(() => {
             executeComputerResponse();
-          }, 100);
+          }, 150);
         });
       } else {
-        // W trybie wyciszonym naturalne, dynamiczne tempo odpowiedzi (300 ms)
         botTimeoutRef.current = window.setTimeout(() => {
           executeComputerResponse();
         }, 300);
       }
     } catch {
       playSound("illegal");
-      const err = t.illegalMoveMsg;
-      setCoachInsight(err);
-      announce(err);
+      setCoachInsight(t.illegalMoveMsg);
+      announce(t.illegalMoveMsg);
 
-      window.setTimeout(() => {
-        if (lastValidCoachInsightRef.current) {
-          setCoachInsight(lastValidCoachInsightRef.current);
-        }
-      }, 3000);
+      setTimeout(() => {
+        setCoachInsight((current: string) =>
+          current === t.illegalMoveMsg
+            ? lastValidCoachInsightRef.current
+            : current,
+        );
+      }, 2500);
     }
   };
 
@@ -543,9 +639,7 @@ export default function Page() {
       setCoachInsight(undoText);
       lastValidCoachInsightRef.current = undoText;
       announce(undoText);
-    } catch {
-      // Ignoruj
-    }
+    } catch {}
   };
 
   const loadPuzzle = (index: number) => {
@@ -573,9 +667,7 @@ export default function Page() {
       lastValidCoachInsightRef.current = hint;
       announce(hint);
       scrollToSection("live-coach");
-    } catch {
-      // Ignoruj
-    }
+    } catch {}
   };
 
   const scrollToSection = (id: string) => {
@@ -589,7 +681,6 @@ export default function Page() {
 
   const isGameOverState = isResigned || gameInstance.isGameOver();
 
-  // Precyzyjny status nagłówka szachownicy: odróżnia szach-mat od pata i remisu
   const getGameStatusLabel = () => {
     if (isResigned) {
       return lang === "pl" ? "Poddana" : "Resigned";
@@ -615,7 +706,15 @@ export default function Page() {
     >
       <SiteHeader
         lang={lang}
-        onToggleLang={() => setLang(lang === "en" ? "pl" : "en")}
+        onToggleLang={() => {
+          const nextLang: Lang = lang === "en" ? "pl" : "en";
+          setLang(nextLang);
+          if (moves.length === 0) {
+            const nextDefault = translations[nextLang].defaultCoachText;
+            setCoachInsight(nextDefault);
+            lastValidCoachInsightRef.current = nextDefault;
+          }
+        }}
         dark={dark}
         onToggleDark={() => setDark(!dark)}
         onOpenSettings={() => setSettings(true)}
@@ -627,7 +726,7 @@ export default function Page() {
       />
 
       <main id="top">
-        {/* Sekcja Hero - renderowana w całości w czystym SSR */}
+        {/* Sekcja Hero */}
         <section className="mx-auto grid max-w-[1360px] gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-16 lg:px-12 lg:pb-24 lg:pt-16">
           <div className="max-w-xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-700/30 bg-[#eaf4d5] px-3.5 py-1.5 text-xs font-bold tracking-[0.16em] text-[#2d4e13] dark:bg-[#1f2d22] dark:text-[#bcee68]">
@@ -726,18 +825,7 @@ export default function Page() {
                 coachInsight={coachInsight}
                 isSpeaking={isSpeaking}
                 coachMuted={coachMuted}
-                onToggleMute={() => {
-                  if (speakCooldownTimeoutRef.current) {
-                    window.clearTimeout(speakCooldownTimeoutRef.current);
-                    speakCooldownTimeoutRef.current = null;
-                  }
-                  if (!coachMuted && typeof window !== "undefined") {
-                    window.speechSynthesis?.cancel();
-                    isSpeakingRef.current = false;
-                    setIsSpeaking(false);
-                  }
-                  setCoachMuted(!coachMuted);
-                }}
+                onToggleMute={() => setCoachMuted(!coachMuted)}
                 onReplayAudio={() => announce(coachInsight)}
                 onDeepAiAnalysis={handleDeepAiAnalysis}
                 isAnalyzingAi={isAnalyzingAi}

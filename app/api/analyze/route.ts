@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { Chess } from "chess.js";
 
 export const runtime = "nodejs";
+export const maxDuration = 10;
 
 interface AnalyzeRequest {
   fen: string;
@@ -29,7 +30,7 @@ function evaluatePosition(game: Chess) {
 
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
-      const square = board[r][c];
+      const square = board[r]?.[c];
       if (square) {
         const val = pieceValues[square.type] || 0;
         if (square.color === "w") {
@@ -101,8 +102,11 @@ export async function POST(req: Request) {
     const pos = evaluatePosition(game);
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // 1. Prawdziwa analiza Gemini AI (jeśli klucz jest skonfigurowany)
+    // 1. Prawdziwa analiza Gemini AI z szybkim limitem 2100 ms (klient czeka 2500 ms)
     if (apiKey) {
+      const geminiController = new AbortController();
+      const geminiTimeout = setTimeout(() => geminiController.abort(), 2100);
+
       try {
         const turnText = pos.turn === "white" ? "Białych" : "Czarnych";
         const materialDesc =
@@ -123,10 +127,10 @@ Stan taktyczny:
 - Możliwe bicia w tym ruchu: ${pos.captureMoves.slice(0, 5).join(", ") || "brak natychmiastowych bić"}.
 - Ostatnie posunięcia: ${history.slice(-4).join(" ") || "początek partii"}.
 
-Sformułuj DOKŁADNIE 2 zwięzłe zdania analizy (maksymalnie 35 słów):
+Sformułuj DOKŁADNIE 2 zwięzłe zdania analizy (maksymalnie 30 słów):
 1. Zdanie 1: Konkretna ocena tej pozycji (materialna, bezpieczeństwo króla lub aktywność bierek).
 2. Zdanie 2: Jasna wskazówka taktyczna lub strategiczna dla strony na posunięciu.
-Wskazówki techniczne: Używaj naturalnego języka szachowego. Żadnych gwiazdek (*), markdownu ani myślników – tekst zostanie odczytany przez syntezator mowy.`;
+Wskazówki techniczne: Żadnych gwiazdek (*), markdownu ani myślników – tekst zostanie odczytany przez syntezator mowy.`;
 
         const promptEn = `You are a FIDE Grandmaster and voice chess tutor.
 Analyzing board position (FEN): "${fen}".
@@ -137,23 +141,23 @@ Tactical breakdown:
 - Immediate Captures Available: ${pos.captureMoves.slice(0, 5).join(", ") || "None"}.
 - Recent moves: ${history.slice(-4).join(" ") || "start of game"}.
 
-Provide EXACTLY 2 short, high-impact pedagogical sentences (max 35 words total):
+Provide EXACTLY 2 short, high-impact pedagogical sentences (max 30 words total):
 1. First sentence: Clear tactical diagnosis of this exact position.
 2. Second sentence: Direct strategic recommendation for the side to move.
 Do not use asterisks (*), markdown, or bullet points — this will be read by browser TTS.`;
 
         const selectedPrompt = lang === "pl" ? promptPl : promptEn;
 
-        // Oficjalny model Gemini API
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            signal: geminiController.signal,
             body: JSON.stringify({
               contents: [{ parts: [{ text: selectedPrompt }] }],
               generationConfig: {
-                maxOutputTokens: 100,
+                maxOutputTokens: 90,
                 temperature: 0.3,
               },
             }),
@@ -173,19 +177,15 @@ Do not use asterisks (*), markdown, or bullet points — this will be read by br
               audioText: cleanText,
             });
           }
-        } else {
-          const errorDetails = await res.text();
-          console.warn("Gemini API HTTP Error:", res.status, errorDetails);
         }
       } catch (geminiError) {
-        console.warn(
-          "Błąd wywołania Gemini API, przejście do silnika heurystycznego:",
-          geminiError,
-        );
+        // W razie timeoutu lub błędu sieci natychmiast przechodzimy do silnika regułowego
+      } finally {
+        clearTimeout(geminiTimeout);
       }
     }
 
-    // 2. DYNAMICZNY ZAAWANSOWANY SILNIK HEURYSTYCZNY (Niezawodny Fallback)
+    // 2. DYNAMICZNY ZAAWANSOWANY SILNIK HEURYSTYCZNY (Błyskawiczny, 0 ms)
     const isWhite = pos.turn === "white";
     const turnPl = isWhite ? "Białe" : "Czarne";
     const turnEn = isWhite ? "White" : "Black";

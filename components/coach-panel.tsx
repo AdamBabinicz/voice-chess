@@ -66,7 +66,7 @@ export function CoachPanel({
   isGameOver,
   labels,
 }: CoachPanelProps) {
-  const displayInsight = coachInsight.trim();
+  const displayInsight = (coachInsight || "").trim();
 
   return (
     <div className="flex flex-col gap-4">
@@ -98,6 +98,7 @@ export function CoachPanel({
             </button>
           </div>
         </div>
+
         <p
           suppressHydrationWarning
           className="font-serif text-sm italic leading-relaxed text-[#2a362f] dark:text-[#e2e8f0]"
@@ -172,6 +173,7 @@ export function CoachPanel({
                 : labels.materialEqual}
           </span>
         </div>
+
         <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#d8e2d4] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e]">
           {moves.length ? (
             moves.map((m, i) => (
@@ -207,6 +209,7 @@ export function CoachPanel({
           >
             {labels.undoBtn}
           </button>
+
           <button
             type="button"
             onClick={onResign}
