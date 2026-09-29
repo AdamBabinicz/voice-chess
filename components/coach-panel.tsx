@@ -66,6 +66,8 @@ export function CoachPanel({
   isGameOver,
   labels,
 }: CoachPanelProps) {
+  const displayInsight = coachInsight.trim();
+
   return (
     <div className="flex flex-col gap-4">
       {/* Ramka wskazówki trenera */}
@@ -96,8 +98,11 @@ export function CoachPanel({
             </button>
           </div>
         </div>
-        <p className="font-serif text-sm italic leading-relaxed text-[#2a362f] dark:text-[#e2e8f0]">
-          &ldquo;{coachInsight}&rdquo;
+        <p
+          suppressHydrationWarning
+          className="font-serif text-sm italic leading-relaxed text-[#2a362f] dark:text-[#e2e8f0]"
+        >
+          {displayInsight ? `\u201C${displayInsight}\u201D` : labels.listen}
         </p>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">

@@ -14,45 +14,78 @@ export interface StockfishEvaluation {
 class StockfishManager {
   private worker: Worker | null = null;
   private isReady = false;
-  private currentResolve: ((evalResult: StockfishEvaluation) => void) | null =
-    null;
+  private initPromise: Promise<void> | null = null;
+  private currentResolve:
+    | ((evalResult: StockfishEvaluation | null) => void)
+    | null = null;
   private currentEvaluation: Partial<StockfishEvaluation> = {};
+  private evalTimeoutId: number | null = null;
 
-  // Leniwa inicjalizacja - worker NIE obciąża initial load strony
+  // Leniwa, bezpieczna inicjalizacja - worker NIE obciąża initial load strony
   private initWorker(): Promise<void> {
-    if (this.worker && this.isReady) {
+    if (this.isReady && this.worker) {
       return Promise.resolve();
     }
 
-    return new Promise((resolve) => {
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = new Promise((resolve) => {
       try {
-        if (typeof window === "undefined") return;
+        if (typeof window === "undefined") {
+          resolve();
+          return;
+        }
 
         this.worker = new Worker("/stockfish.js");
 
+        // Watchdog: jeśli worker nie załaduje się w 2500ms, odblokuj interfejs
+        const initFallbackTimeout = window.setTimeout(() => {
+          this.isReady = true;
+          resolve();
+        }, 2500);
+
         this.worker.onmessage = (event: MessageEvent) => {
-          const line: string = typeof event.data === "string" ? event.data : "";
-          this.handleUciOutput(line);
-        };
+          const rawData: string =
+            typeof event.data === "string" ? event.data : "";
+          const lines = rawData.split("\n");
 
-        this.worker.postMessage("uci");
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) continue;
 
-        // Po potwierdzeniu 'readyok' uznajemy silnik za gotowy
-        const checkReady = (e: MessageEvent) => {
-          const msg = typeof e.data === "string" ? e.data : "";
-          if (msg.includes("readyok") || msg.includes("uciok")) {
-            this.isReady = true;
-            resolve();
+            // Wykrycie gotowości silnika UCI
+            if (
+              !this.isReady &&
+              (line.includes("uciok") || line.includes("readyok"))
+            ) {
+              this.isReady = true;
+              window.clearTimeout(initFallbackTimeout);
+              resolve();
+            }
+
+            this.handleUciOutput(line);
           }
         };
 
-        this.worker.addEventListener("message", checkReady, { once: true });
+        this.worker.onerror = (err) => {
+          console.warn("Stockfish Worker error fallback:", err);
+          window.clearTimeout(initFallbackTimeout);
+          this.isReady = false;
+          resolve();
+        };
+
+        // Inicjalizacja protokołu UCI
+        this.worker.postMessage("uci");
         this.worker.postMessage("isready");
       } catch (err) {
         console.warn("Stockfish Worker initialization fallback:", err);
         resolve();
       }
     });
+
+    return this.initPromise;
   }
 
   private handleUciOutput(line: string) {
@@ -63,8 +96,9 @@ class StockfishManager {
       const mateMatch = line.match(/score mate (-?\d+)/);
       const pvMatch = line.match(/pv (.+)/);
 
-      if (depthMatch)
+      if (depthMatch) {
         this.currentEvaluation.depth = parseInt(depthMatch[1], 10);
+      }
       if (cpMatch) {
         this.currentEvaluation.scoreCp = parseInt(cpMatch[1], 10);
         this.currentEvaluation.mateIn = undefined;
@@ -80,6 +114,11 @@ class StockfishManager {
 
     // 2. Finalny ruch: 'bestmove e2e4 ponder e7e5'
     if (line.startsWith("bestmove")) {
+      if (this.evalTimeoutId) {
+        window.clearTimeout(this.evalTimeoutId);
+        this.evalTimeoutId = null;
+      }
+
       const parts = line.split(" ");
       const bestMoveStr = parts[1];
 
@@ -104,6 +143,11 @@ class StockfishManager {
           this.currentResolve(finalResult);
           this.currentResolve = null;
         }
+      } else {
+        if (this.currentResolve) {
+          this.currentResolve(null);
+          this.currentResolve = null;
+        }
       }
     }
   }
@@ -111,7 +155,7 @@ class StockfishManager {
   /**
    * Analizuje zadaną pozycję FEN za pomocą Stockfisha.
    * @param fen Pozycja szachowa
-   * @param depth Głębokość analizy (domyślnie 10 dla błyskawicznej odpowiedzi ~100-250ms)
+   * @param depth Głębokość analizy (domyślnie 10)
    */
   public async evaluatePosition(
     fen: string,
@@ -125,7 +169,19 @@ class StockfishManager {
       this.currentResolve = resolve;
       this.currentEvaluation = {};
 
-      // Zatrzymujemy ewentualne poprzednie liczenie i ustawiamy pozycję
+      if (this.evalTimeoutId) {
+        window.clearTimeout(this.evalTimeoutId);
+      }
+
+      // Bezpiecznik: jeśli po 1500ms Stockfish nie odda bestmove, zwolnij Promise
+      this.evalTimeoutId = window.setTimeout(() => {
+        if (this.currentResolve) {
+          this.currentResolve(null);
+          this.currentResolve = null;
+        }
+      }, 1500);
+
+      // Zatrzymujemy poprzednie liczenie i zadajemy pozycję
       this.worker!.postMessage("stop");
       this.worker!.postMessage(`position fen ${fen}`);
       this.worker!.postMessage(`go depth ${depth}`);
@@ -146,17 +202,22 @@ class StockfishManager {
     const evalScore =
       scoreCp !== undefined ? (isWhiteTurn ? scoreCp : -scoreCp) / 100 : 0;
 
+    const formattedMove =
+      bestMove.length >= 4
+        ? `${bestMove.substring(0, 2)}-${bestMove.substring(2, 4)}`
+        : bestMove;
+
     let textPl = "";
     let textEn = "";
 
     if (mateIn !== undefined) {
       if (mateIn > 0) {
-        textPl = `Forsowny mat w ${mateIn} ${mateIn === 1 ? "ruchu" : "ruchach"}! Najlepsze posunięcie to ${bestMove}. Nie wypuść wygranej!`;
-        textEn = `Forced mate in ${mateIn}! Best move is ${bestMove}. Finish the game cleanly!`;
+        textPl = `Forsowny mat w ${mateIn} ${mateIn === 1 ? "ruchu" : "ruchach"}! Najlepsze posunięcie to ${formattedMove}. Nie wypuść wygranej!`;
+        textEn = `Forced mate in ${mateIn}! Best move is ${formattedMove}. Finish the game cleanly!`;
       } else {
         const mateAbs = Math.abs(mateIn);
-        textPl = `Uwaga! Grozi mat w ${mateAbs} ${mateAbs === 1 ? "ruchu" : "ruchach"}! Konieczna natychmiastowa obrona posunięciem ${bestMove}.`;
-        textEn = `Warning! Opponent has mate in ${mateAbs}! Immediate defensive move ${bestMove} required.`;
+        textPl = `Uwaga! Grozi mat w ${mateAbs} ${mateAbs === 1 ? "ruchu" : "ruchach"}! Konieczna natychmiastowa obrona ruchem ${formattedMove}.`;
+        textEn = `Warning! Opponent has mate in ${mateAbs}! Immediate defensive move ${formattedMove} required.`;
       }
     } else if (Math.abs(evalScore) > 3.0) {
       const leader =
@@ -167,14 +228,14 @@ class StockfishManager {
           : lang === "pl"
             ? "czarne"
             : "Black";
-      textPl = `Wyraźna przewaga: ${leader} (+${Math.abs(evalScore).toFixed(1)}). Silnik Stockfish rekomenduje ruch ${bestMove}.`;
-      textEn = `Decisive advantage: ${leader} (+${Math.abs(evalScore).toFixed(1)}). Stockfish recommends ${bestMove}.`;
+      textPl = `Wyraźna przewaga: ${leader} (+${Math.abs(evalScore).toFixed(1)}). Silnik Stockfish rekomenduje ruch ${formattedMove}.`;
+      textEn = `Decisive advantage: ${leader} (+${Math.abs(evalScore).toFixed(1)}). Stockfish recommends ${formattedMove}.`;
     } else if (Math.abs(evalScore) < 0.5) {
-      textPl = `Równowaga materialna i pozycyjna (ocena ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}). Precyzyjny ruch to ${bestMove}.`;
-      textEn = `Balanced position (eval ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}). Solid continuation is ${bestMove}.`;
+      textPl = `Równowaga materialna i pozycyjna (ocena ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}). Precyzyjny ruch to ${formattedMove}.`;
+      textEn = `Balanced position (eval ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}). Solid continuation is ${formattedMove}.`;
     } else {
-      textPl = `Ocena Stockfisha (głębokość ${depth}): ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}. Rekomendowany ruch: ${bestMove}.`;
-      textEn = `Stockfish eval (depth ${depth}): ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}. Recommended move: ${bestMove}.`;
+      textPl = `Ocena Stockfisha (głębokość ${depth}): ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}. Rekomendowany ruch: ${formattedMove}.`;
+      textEn = `Stockfish eval (depth ${depth}): ${evalScore > 0 ? "+" : ""}${evalScore.toFixed(1)}. Recommended move: ${formattedMove}.`;
     }
 
     return {

@@ -46,26 +46,95 @@ const CENTIPAWN_VALUES: Record<PieceSymbol, number> = {
   k: 20000,
 };
 
-// Pozycyjne tabele wartości pól (Piece-Square Tables)
+// Pozycyjne tabele wartości pól (Piece-Square Tables) z perspektywy białych (od a8 do h1)
 const PAWN_TABLE = [
   0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30,
-  20, 10, 10, 5, 5, 10, 25, 25, 10, 5, 5, 0, 0, 0, 20, 20, 0, 0, 0, 5, -5, -10,
-  0, 0, -10, -5, 5, 5, 10, 10, -20, -20, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0,
+  20, 10, 10, 5, 5, 10, 27, 27, 10, 5, 5, 0, 0, 0, 25, 25, 0, 0, 0, 5, -5, -10,
+  0, 0, -10, -5, 5, 5, 10, 10, -25, -25, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
 const KNIGHT_TABLE = [
-  -50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 0, 0, 0, -20, -40, -30,
-  0, 10, 15, 15, 10, 0, -30, -30, 5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 20, 20,
-  15, 0, -30, -30, 5, 10, 15, 15, 10, 5, -30, -40, -20, 0, 5, 5, 0, -20, -40,
+  -50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 5, 5, 0, -20, -40, -30,
+  5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 25, 25, 15, 0, -30, -30, 5, 15, 25, 25,
+  15, 5, -30, -30, 0, 10, 15, 15, 10, 0, -30, -40, -20, 0, 5, 5, 0, -20, -40,
   -50, -40, -30, -30, -30, -30, -40, -50,
 ];
 
 const BISHOP_TABLE = [
-  -20, -10, -10, -10, -10, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5,
-  10, 10, 5, 0, -10, -10, 5, 5, 10, 10, 5, 5, -10, -10, 0, 10, 10, 10, 10, 0,
-  -10, -10, 10, 10, 10, 10, 10, 10, -10, -10, 5, 0, 0, 0, 0, 5, -10, -20, -10,
+  -20, -10, -10, -10, -10, -10, -10, -20, -10, 5, 0, 0, 0, 0, 5, -10, -10, 10,
+  10, 10, 10, 10, 10, -10, -10, 0, 10, 15, 15, 10, 0, -10, -10, 5, 5, 15, 15, 5,
+  5, -10, -10, 0, 10, 10, 10, 10, 0, -10, -10, 5, 0, 0, 0, 0, 5, -10, -20, -10,
   -10, -10, -10, -10, -10, -20,
 ];
+
+const ROOK_TABLE = [
+  0, 0, 0, 5, 5, 0, 0, 0, 15, 20, 20, 20, 20, 20, 20, 15, -5, 0, 0, 0, 0, 0, 0,
+  -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0,
+  -5, 5, 10, 10, 10, 10, 10, 10, 5, 0, 0, 0, 10, 10, 0, 0, 0,
+];
+
+const QUEEN_TABLE = [
+  -20, -10, -10, -5, -5, -10, -10, -20, -10, 0, 5, 0, 0, 0, 0, -10, -10, 5, 5,
+  5, 5, 5, 0, -10, 0, 0, 5, 5, 5, 5, 0, -5, -5, 0, 5, 5, 5, 5, 0, -5, -10, 0, 5,
+  5, 5, 5, 0, -10, -10, 0, 0, 0, 0, 0, 0, -10, -20, -10, -10, -5, -5, -10, -10,
+  -20,
+];
+
+const KING_TABLE_MIDDLE = [
+  -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40,
+  -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40,
+  -40, -30, -20, -30, -30, -40, -40, -30, -20, -20, -10, -20, -20, -20, -20,
+  -20, -10, -10, 20, 20, 0, 0, 0, 0, 20, 20, 20, 30, 10, 0, 0, 10, 30, 20,
+];
+
+const KING_TABLE_ENDGAME = [
+  -50, -30, -30, -30, -30, -30, -30, -50, -30, -15, 0, 0, 0, 0, -15, -30, -30,
+  0, 15, 20, 20, 15, 0, -30, -30, 5, 20, 30, 30, 20, 5, -30, -30, 0, 20, 30, 30,
+  20, 0, -30, -30, -10, 10, 20, 20, 10, -10, -30, -40, -20, 0, 5, 5, 0, -20,
+  -40, -50, -40, -30, -20, -20, -30, -40, -50,
+];
+
+/**
+ * Wbudowana Arcymistrzowska Księga Debiutów (Opening Book)
+ * Zapewnia solidny start partii w 0 ms i chroni bota przed pułapkami debiutowymi.
+ */
+const OPENING_BOOK: Record<string, string[]> = {
+  // Ruch 1 białych
+  "": ["e4", "d4", "Nf3", "c4"],
+  // Odpowiedzi czarnych na 1. e4
+  e4: ["c5", "e5", "e6", "c6"],
+  // Odpowiedzi czarnych na 1. d4
+  d4: ["d5", "Nf6", "e6"],
+  // Odpowiedzi na 1. c4 i 1. Nf3
+  c4: ["e5", "c5", "Nf6"],
+  Nf3: ["d5", "Nf6"],
+  // Otwarta partia (1. e4 e5)
+  "e4 e5": ["Nf3", "Bc4", "Nc3"],
+  "e4 e5 Nf3": ["Nc6", "Nf6"],
+  "e4 e5 Nf3 Nc6": ["Bc4", "Bb5", "d4"],
+  "e4 e5 Nf3 Nc6 Bc4": ["Bc5", "Nf6"], // Partia Włoska
+  "e4 e5 Nf3 Nc6 Bb5": ["a6", "Nf6"], // Ruy Lopez
+  // Obrona Sycylijska (1. e4 c5)
+  "e4 c5": ["Nf3", "Nc3"],
+  "e4 c5 Nf3": ["d6", "Nc6", "e6"],
+  "e4 c5 Nf3 d6": ["d4"],
+  "e4 c5 Nf3 d6 d4 cxd4": ["Nxd4"],
+  // Gambiet Hetmański (1. d4 d5)
+  "d4 d5": ["c4", "Nf3"],
+  "d4 d5 c4": ["e6", "c6", "dxc4"],
+  "d4 d5 c4 e6": ["Nc3", "Nf3"],
+  // Obrona Królewsko-Indyjska / Nimzowitsch (1. d4 Nf6)
+  "d4 Nf6": ["c4", "Nf3"],
+  "d4 Nf6 c4": ["g6", "e6"],
+  // Obrona Francuska (1. e4 e6)
+  "e4 e6": ["d4"],
+  "e4 e6 d4": ["d5"],
+  "e4 e6 d4 d5": ["Nc3", "Nd2", "e5"],
+  // Caro-Kann (1. e4 c6)
+  "e4 c6": ["d4"],
+  "e4 c6 d4": ["d5"],
+  "e4 c6 d4 d5": ["Nc3", "e5"],
+};
 
 export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
   {
@@ -240,7 +309,6 @@ export function checkStalemateDanger(
   const legalMoves = game.moves();
   const board = game.board();
 
-  // Sprawdzamy liczbę bierek strony broniącej się
   const defendingColor = game.turn();
   let defendingPiecesCount = 0;
 
@@ -252,7 +320,6 @@ export function checkStalemateDanger(
     }
   }
 
-  // Jeśli rywal ma tylko króla (lub króla i piona) i ma maksymalnie 2 ruchy
   if (
     defendingPiecesCount <= 2 &&
     legalMoves.length > 0 &&
@@ -358,6 +425,7 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
   let totalScore = 0;
   let whiteMat = 0;
   let blackMat = 0;
+  let hasQueens = false;
   const board = game.board();
 
   for (let r = 0; r < 8; r++) {
@@ -365,6 +433,7 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
       const piece = board[r][c];
       if (!piece) continue;
 
+      if (piece.type === "q") hasQueens = true;
       const baseVal = CENTIPAWN_VALUES[piece.type] || 0;
       let positionalVal = 0;
 
@@ -376,6 +445,14 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
         positionalVal = KNIGHT_TABLE[idx] || 0;
       } else if (piece.type === "b") {
         positionalVal = BISHOP_TABLE[idx] || 0;
+      } else if (piece.type === "r") {
+        positionalVal = ROOK_TABLE[idx] || 0;
+      } else if (piece.type === "q") {
+        positionalVal = QUEEN_TABLE[idx] || 0;
+      } else if (piece.type === "k") {
+        positionalVal = hasQueens
+          ? KING_TABLE_MIDDLE[idx] || 0
+          : KING_TABLE_ENDGAME[idx] || 0;
       }
 
       const pieceTotal = baseVal + positionalVal;
@@ -389,6 +466,12 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
     }
   }
 
+  // Bezpieczeństwo króla w grze środkowej (kara za króla w centrum przy hetmanach)
+  if (hasQueens) {
+    if (board[7][4]?.type === "k") totalScore -= 30; // Biały król na e1
+    if (board[0][4]?.type === "k") totalScore += 30; // Czarny król na e8
+  }
+
   if (whiteMat > blackMat + 400) {
     totalScore += evaluateEndgameMopUp(board, "w");
   } else if (blackMat > whiteMat + 400) {
@@ -399,7 +482,90 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
 }
 
 /**
- * Algorytm Minimax z obcinaniem Alpha-Beta i dyskontowaniem głębokości mata
+ * Sortowanie ruchów według heurystyki MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+ * Drastycznie zwiększa współczynnik odcięć Alpha-Beta.
+ */
+function scoreMoveForOrdering(m: Move): number {
+  let score = 0;
+  if (m.captured) {
+    const victimVal = CENTIPAWN_VALUES[m.captured] || 100;
+    const attackerVal = CENTIPAWN_VALUES[m.piece] || 100;
+    score += victimVal * 10 - attackerVal; // PxQ jest znacznie wyżej niż QxP
+  }
+  if (m.promotion) {
+    score += 900;
+  }
+  if (m.san.includes("+")) {
+    score += 150;
+  }
+  return score;
+}
+
+/**
+ * Quiescence Search (Wyszukiwanie Spokojne)
+ * Zapobiega efektowi horyzontu poprzez doliczanie forsownych bić i promocji.
+ */
+function quiescence(
+  game: Chess,
+  alpha: number,
+  beta: number,
+  ply: number,
+  isMaximizing: boolean,
+  maxQDepth: number = 3,
+): number {
+  const standPat = evaluateStaticPosition(game, ply);
+
+  if (ply >= maxQDepth || game.isGameOver()) {
+    return standPat;
+  }
+
+  if (isMaximizing) {
+    if (standPat >= beta) return beta;
+    if (standPat > alpha) alpha = standPat;
+
+    const captureMoves = game
+      .moves({ verbose: true })
+      .filter((m) => m.captured || m.promotion);
+
+    captureMoves.sort(
+      (a, b) => scoreMoveForOrdering(b) - scoreMoveForOrdering(a),
+    );
+
+    for (const m of captureMoves) {
+      game.move(m);
+      const score = quiescence(game, alpha, beta, ply + 1, false, maxQDepth);
+      game.undo();
+
+      if (score >= beta) return beta;
+      if (score > alpha) alpha = score;
+    }
+    return alpha;
+  } else {
+    if (standPat <= alpha) return alpha;
+    if (standPat < beta) beta = standPat;
+
+    const captureMoves = game
+      .moves({ verbose: true })
+      .filter((m) => m.captured || m.promotion);
+
+    captureMoves.sort(
+      (a, b) => scoreMoveForOrdering(b) - scoreMoveForOrdering(a),
+    );
+
+    for (const m of captureMoves) {
+      game.move(m);
+      const score = quiescence(game, alpha, beta, ply + 1, true, maxQDepth);
+      game.undo();
+
+      if (score <= alpha) return alpha;
+      if (score < beta) beta = score;
+    }
+    return beta;
+  }
+}
+
+/**
+ * Algorytm Minimax z obcinaniem Alpha-Beta, sortowaniem ruchów i wyszukiwaniem spokojnym (Quiescence)
  */
 function minimax(
   game: Chess,
@@ -410,7 +576,7 @@ function minimax(
   isMaximizing: boolean,
 ): number {
   if (depth === 0 || game.isGameOver()) {
-    return evaluateStaticPosition(game, ply);
+    return quiescence(game, alpha, beta, ply, isMaximizing);
   }
 
   const moves = game.moves({ verbose: true });
@@ -418,17 +584,7 @@ function minimax(
     return evaluateStaticPosition(game, ply);
   }
 
-  moves.sort((a, b) => {
-    let scoreA =
-      (a.promotion ? 20 : 0) +
-      (a.captured ? 10 : 0) +
-      (a.san.includes("+") ? 6 : 0);
-    let scoreB =
-      (b.promotion ? 20 : 0) +
-      (b.captured ? 10 : 0) +
-      (b.san.includes("+") ? 6 : 0);
-    return scoreB - scoreA;
-  });
+  moves.sort((a, b) => scoreMoveForOrdering(b) - scoreMoveForOrdering(a));
 
   if (isMaximizing) {
     let maxEval = -Infinity;
@@ -456,7 +612,10 @@ function minimax(
 }
 
 /**
- * Zwraca najlepszy ruch dla bota z bezwzględnym priorytetem zadania mata (Mate-in-1/2)
+ * Zwraca najlepszy ruch dla bota z uwzględnieniem:
+ * 1. Natychmiastowego mata (Mate-in-1)
+ * 2. Księgi debiutów (Opening Book)
+ * 3. Minimaxa z sortowaniem ruchów i wyszukiwaniem spokojnym
  */
 export function findBestEngineMove(
   game: Chess,
@@ -465,6 +624,7 @@ export function findBestEngineMove(
   const legalMoves = game.moves({ verbose: true });
   if (!legalMoves.length) return null;
 
+  // 1. Zawsze sprawdź natychmiastowego mata
   for (const m of legalMoves) {
     game.move(m);
     if (game.isCheckmate()) {
@@ -474,6 +634,24 @@ export function findBestEngineMove(
     game.undo();
   }
 
+  // 2. Debiut z księgi (dla poziomów intermediate i master do 4. posunięcia)
+  if (difficulty !== "beginner") {
+    const history = game.history();
+    const historyStr = history.slice(0, 8).join(" ");
+    const bookOptions = OPENING_BOOK[historyStr];
+
+    if (bookOptions && bookOptions.length > 0) {
+      // Wybierz losowy ruch z księgi dla różnorodności
+      const selectedSan =
+        bookOptions[Math.floor(Math.random() * bookOptions.length)];
+      const bookMove = legalMoves.find((m) => m.san === selectedSan);
+      if (bookMove) {
+        return bookMove;
+      }
+    }
+  }
+
+  // Poziom początkujący
   if (difficulty === "beginner") {
     const captures = legalMoves.filter((m) => m.captured);
     if (captures.length > 0 && Math.random() < 0.45) {
@@ -484,16 +662,21 @@ export function findBestEngineMove(
 
   const isWhite = game.turn() === "w";
 
+  // Poziom średniozaawansowany (głębokość 3 + Quiescence)
   if (difficulty === "intermediate") {
     let bestMove = legalMoves[0];
     let bestVal = isWhite ? -Infinity : Infinity;
 
+    legalMoves.sort(
+      (a, b) => scoreMoveForOrdering(b) - scoreMoveForOrdering(a),
+    );
+
     for (const m of legalMoves) {
       game.move(m);
-      let ev = evaluateStaticPosition(game, 1);
+      let ev = minimax(game, 2, 1, -Infinity, Infinity, !isWhite);
 
       if (game.isDraw()) {
-        ev = isWhite ? -5000 : 5000;
+        ev = isWhite ? -3000 : 3000;
       }
 
       game.undo();
@@ -513,9 +696,12 @@ export function findBestEngineMove(
     return bestMove;
   }
 
+  // Poziom mistrzowski (głębokość 4 + Quiescence + pełne PST)
   let bestMove = legalMoves[0];
   let bestVal = isWhite ? -Infinity : Infinity;
-  const searchDepth = 3;
+  const searchDepth = 4;
+
+  legalMoves.sort((a, b) => scoreMoveForOrdering(b) - scoreMoveForOrdering(a));
 
   for (const m of legalMoves) {
     game.move(m);
@@ -813,7 +999,6 @@ export function generateCoachInsight(
     const opponentColor = lastMove.color; // 'w' | 'b'
     const playerColor = opponentColor === "w" ? "b" : "w";
 
-    // Sprawdzamy stan szachownicy i zbieramy bierki gracza z ich RZECZYWISTYMI polami
     const board = game.board();
     let threatenedQueenSquare: Square | null = null;
     let threatenedRookSquare: Square | null = null;
@@ -824,7 +1009,6 @@ export function generateCoachInsight(
         if (p && p.color === playerColor) {
           const sq = `${String.fromCharCode(97 + c)}${8 - r}` as Square;
 
-          // Wykorzystujemy natywną metodę silnika szachowego do weryfikacji ataku
           const isAttacked = game.isAttacked(sq, opponentColor);
           if (isAttacked) {
             if (p.type === "q" && !threatenedQueenSquare) {
@@ -855,7 +1039,6 @@ export function generateCoachInsight(
       };
     }
 
-    // Czy przeciwnik podstawił figurę pod bicie przez gracza?
     const playerLegalMoves = game.moves({ verbose: true });
     const directCaptures = playerLegalMoves.filter((m) => m.to === lastMove.to);
     if (directCaptures.length > 0 && lastMove.piece !== "p") {

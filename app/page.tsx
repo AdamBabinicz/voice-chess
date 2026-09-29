@@ -141,7 +141,7 @@ export default function Page() {
           };
 
           const handleFinish = () => {
-            // Skrócony, zoptymalizowany bufor 150ms po zakończeniu głosu (eliminuje sztuczne opóźnienie)
+            // Zoptymalizowany bufor 150ms po zakończeniu mowy (brak kolizji z mikrofonem)
             speakCooldownTimeoutRef.current = window.setTimeout(() => {
               isSpeakingRef.current = false;
               setIsSpeaking(false);
@@ -250,32 +250,61 @@ export default function Page() {
         | { from: string; to: string; promotion?: string }
         | null = null;
 
-      // Na poziomie "master" pytamy Stockfisha w tle o optymalne posunięcie
-      if (difficulty === "master") {
+      // Zapytanie Stockfisha z limitem czasu 1200ms (dla poziomu master i intermediate)
+      if (difficulty === "master" || difficulty === "intermediate") {
         try {
-          const sfEval = await stockfishService.evaluatePosition(
+          const targetDepth = difficulty === "master" ? 12 : 6;
+          const stockfishPromise = stockfishService.evaluatePosition(
             gameInstance.fen(),
-            10,
+            targetDepth,
           );
-          if (sfEval && sfEval.from && sfEval.to) {
-            chosenMove = {
-              from: sfEval.from,
-              to: sfEval.to,
-              promotion: sfEval.promotion || "q",
-            };
+          const timeoutPromise = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 1200),
+          );
+
+          const sfEval = await Promise.race([stockfishPromise, timeoutPromise]);
+
+          if (sfEval) {
+            if (sfEval.from && sfEval.to) {
+              chosenMove = {
+                from: sfEval.from,
+                to: sfEval.to,
+                promotion: sfEval.promotion || "q",
+              };
+            } else if (sfEval.bestMove) {
+              chosenMove = sfEval.bestMove;
+            }
           }
         } catch {
-          // W razie niedostępności workera przejdź do szybkiego silnika lokalnego
+          // W razie niedostępności przejdź do lokalnego silnika
         }
       }
 
+      // Fallback do wzmocnionego lokalnego silnika (księga debiutów + Minimax 4-ply + Quiescence)
       if (!chosenMove) {
-        chosenMove = findBestEngineMove(gameInstance, difficulty);
+        const localMove = findBestEngineMove(gameInstance, difficulty);
+        if (localMove) {
+          chosenMove = {
+            from: localMove.from,
+            to: localMove.to,
+            promotion: localMove.promotion || "q",
+          };
+        }
       }
 
       if (!chosenMove) return;
 
-      const reply = gameInstance.move(chosenMove as any);
+      const reply =
+        typeof chosenMove === "string"
+          ? gameInstance.move(chosenMove, { strict: false })
+          : gameInstance.move({
+              from: chosenMove.from as Square,
+              to: chosenMove.to as Square,
+              promotion: chosenMove.promotion || "q",
+            });
+
+      if (!reply) return;
+
       setBoard([...gameInstance.board()]);
       setTurn(gameInstance.turn());
       setMoves([...gameInstance.history()]);
