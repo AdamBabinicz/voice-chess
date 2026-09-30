@@ -308,19 +308,19 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
     difficulty: "master",
     difficultyLabel: { pl: "Mistrz", en: "Master" },
     icon: "🎯",
-    fen: "3r2k1/3q1ppp/8/8/8/8/4QPPP/2R3K1 w - - 0 1",
+    fen: "3r2k1/3q1ppp/8/8/8/8/4QPPP/3R2K1 w - - 0 1",
     hint: {
       pl: "Motyw taktyczny: Odciągnięcie obrońcy! Czarna wieża na d8 pilnuje 8. linii przed matem. Zagraj hetmanem na e7 (Qe7!), stawiając czarne pod ścianą!",
       en: "Tactical Motif: Deflection! Black's rook on d8 guards the 8th rank from back-rank mate. Invade with Qe7! putting Black in an impossible bind!",
     },
     verify: (san: string) => san.startsWith("Qe7"),
     successText: {
-      pl: "Arcymistrzowskie posunięcie (Qe7!)! Jeśli hetman czarnych zbije Twojego hetmana, wieża daje natychmiastowego mata na c8. Obrona czarnych została sparaliżowana!",
-      en: "Grandmaster strike (Qe7!)! If Black's queen captures yours, the rook delivers immediate back-rank mate on c8. Black's defense is paralyzed!",
+      pl: "Arcymistrzowskie posunięcie (Qe7!)! Jeśli hetman czarnych zbije Twojego hetmana, Twoja wieża z d1 bije na d8 z natychmiastowym matem! Obrona czarnych została sparaliżowana.",
+      en: "Grandmaster strike (Qe7!)! If Black's queen captures yours, your rook on d1 captures on d8 with immediate checkmate! Black's defense is paralyzed.",
     },
     failureText: {
-      pl: "To nie odciąga obrońcy. Wkrocz hetmanem na pole e7 — zaatakujesz hetmana d7, a czarne nie mogą go zbić ze względu na mata na c8!",
-      en: "That does not deflect the defender. Infiltrate with queen to e7 — striking Black's queen while threatening mate on c8!",
+      pl: "To nie odciąga obrońcy. Wkrocz hetmanem na pole e7 — zaatakujesz hetmana d7, a czarne nie mogą go zbić ze względu na mata na d8!",
+      en: "That does not deflect the defender. Infiltrate with queen to e7 — striking Black's queen while threatening mate on d8!",
     },
   },
 ];
