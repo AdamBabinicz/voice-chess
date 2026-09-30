@@ -1,5 +1,8 @@
 // components/tactics-section.tsx
-import { ChevronRight } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { ChevronRight, Filter } from "lucide-react";
 import { TACTICAL_PUZZLES, TacticalPuzzle } from "@/lib/chess-coach-engine";
 import { Lang } from "@/lib/translations";
 import { cn } from "@/lib/utils";
@@ -14,6 +17,8 @@ interface TacticsSectionProps {
   activeBadgeText: string;
 }
 
+type DifficultyFilter = "all" | "beginner" | "intermediate" | "master";
+
 export function TacticsSection({
   lang,
   activePuzzle,
@@ -23,34 +28,94 @@ export function TacticsSection({
   exploreText,
   activeBadgeText,
 }: TacticsSectionProps) {
+  const [filter, setFilter] = useState<DifficultyFilter>("all");
+
+  const filterLabels: Record<DifficultyFilter, { pl: string; en: string }> = {
+    all: { pl: "Wszystkie", en: "All" },
+    beginner: { pl: "Początkujący", en: "Beginner" },
+    intermediate: { pl: "Średniozaawansowany", en: "Intermediate" },
+    master: { pl: "Mistrz", en: "Master" },
+  };
+
+  const filteredPuzzles = TACTICAL_PUZZLES.filter((puzzle) => {
+    if (filter === "all") return true;
+    return puzzle.difficulty === filter;
+  });
+
   return (
     <section
       id="tactics"
       className="border-y border-[#dfe5dc] bg-[#eef3ea] dark:border-[#29332e] dark:bg-[#172019]"
     >
       <div className="mx-auto max-w-[1360px] px-5 py-16 sm:px-8 lg:px-12">
-        <div className="max-w-2xl">
-          <h2 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl text-[#17201c] dark:text-[#edf2ed]">
-            {title}
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#3c4a41] dark:text-[#cbd5e1] sm:text-base">
-            {subtitle}
-          </p>
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <h2 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl text-[#17201c] dark:text-[#edf2ed]">
+              {title}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#3c4a41] dark:text-[#cbd5e1] sm:text-base">
+              {subtitle}
+            </p>
+          </div>
+
+          {/* Filtry poziomu trudności */}
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="tablist"
+            aria-label="Filtry zadań taktycznych"
+          >
+            <div className="mr-1 flex items-center gap-1.5 text-xs font-semibold text-[#3c4a41] dark:text-[#94a3b8]">
+              <Filter className="size-3.5" />
+              <span>{lang === "pl" ? "Poziom:" : "Level:"}</span>
+            </div>
+            {(
+              [
+                "all",
+                "beginner",
+                "intermediate",
+                "master",
+              ] as DifficultyFilter[]
+            ).map((level) => {
+              const isSelected = filter === level;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => setFilter(level)}
+                  className={cn(
+                    "cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2d4e13]",
+                    isSelected
+                      ? "bg-[#2d4e13] text-white shadow-sm dark:bg-[#a8d655] dark:text-[#17201c]"
+                      : "bg-white text-[#3c4a41] hover:bg-[#e2ebd8] dark:bg-[#202f23] dark:text-[#cbd5e1] dark:hover:bg-[#293c2d]",
+                  )}
+                >
+                  {filterLabels[level][lang]}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {TACTICAL_PUZZLES.map((puzzle: TacticalPuzzle, i: number) => {
-            const isActive = activePuzzle === i;
+          {filteredPuzzles.map((puzzle: TacticalPuzzle) => {
+            // Bezpieczne mapowanie do oryginalnego indeksu w TACTICAL_PUZZLES
+            const originalIndex = TACTICAL_PUZZLES.findIndex(
+              (p) => p.id === puzzle.id,
+            );
+            const isActive = activePuzzle === originalIndex;
+
             return (
               <div
                 key={puzzle.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => onSelectPuzzle(i)}
+                onClick={() => onSelectPuzzle(originalIndex)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    onSelectPuzzle(i);
+                    onSelectPuzzle(originalIndex);
                   }
                 }}
                 aria-label={`${puzzle.title[lang]} - ${puzzle.difficultyLabel[lang]}`}
@@ -81,7 +146,6 @@ export function TacticsSection({
                     </span>
                   </div>
 
-                  {/* Zamiana h3 na semantyczny span block spełnia regułę W3C ARIA */}
                   <span className="block mt-5 font-serif text-lg font-semibold text-[#17201c] dark:text-white">
                     {puzzle.title[lang]}
                   </span>

@@ -230,7 +230,7 @@ export default function Page() {
     try {
       const fen = gameInstance.fen();
 
-      // 1. Stockfish z limitem 500 ms
+      // 1. Stockfish z limitem 800 ms
       try {
         const sfResult = await stockfishService.evaluatePosition(fen, 10);
         if (sfResult) {
@@ -301,25 +301,36 @@ export default function Page() {
         | { from: string; to: string; promotion?: string }
         | null = null;
 
-      // 1. Próba silnika z Twoim targetDepth na 5 posunięć
+      // 1. Prawdziwy Stockfish dla poziomu Mistrz (Master) i Średniozaawansowany (Intermediate)
       if (difficulty === "master" || difficulty === "intermediate") {
         try {
-          const targetDepth = difficulty === "master" ? 10 : 5;
+          const targetDepth = difficulty === "master" ? 14 : 7;
+          const maxWaitTime = difficulty === "master" ? 2200 : 1200;
+
           const stockfishPromise = stockfishService.evaluatePosition(
             gameInstance.fen(),
             targetDepth,
           );
           const timeoutPromise = new Promise<null>((resolve) =>
-            setTimeout(() => resolve(null), 800),
+            setTimeout(() => resolve(null), maxWaitTime),
           );
 
           const sfEval = await Promise.race([stockfishPromise, timeoutPromise]);
 
           if (sfEval) {
-            if (sfEval.from && sfEval.to) {
-              const from = sfEval.from.toLowerCase();
-              const to = sfEval.to.toLowerCase();
-              const piece = gameInstance.get(from as Square);
+            const moveStr = sfEval.bestMove || "";
+            const fromStr =
+              sfEval.from || (moveStr.length >= 4 ? moveStr.slice(0, 2) : "");
+            const toStr =
+              sfEval.to || (moveStr.length >= 4 ? moveStr.slice(2, 4) : "");
+            const promoStr =
+              sfEval.promotion ||
+              (moveStr.length >= 5 ? moveStr[4].toLowerCase() : undefined);
+
+            if (fromStr && toStr) {
+              const from = fromStr.toLowerCase() as Square;
+              const to = toStr.toLowerCase() as Square;
+              const piece = gameInstance.get(from);
               const isPromo =
                 piece?.type === "p" &&
                 ((from[1] === "7" && to[1] === "8") ||
@@ -328,18 +339,18 @@ export default function Page() {
               chosenMove = {
                 from,
                 to,
-                ...(isPromo ? { promotion: sfEval.promotion || "q" } : {}),
+                ...(isPromo ? { promotion: promoStr || "q" } : {}),
               };
             } else if (sfEval.bestMove) {
               chosenMove = sfEval.bestMove;
             }
           }
-        } catch {
-          // Przejście do silnika lokalnego
+        } catch (sfErr) {
+          console.warn("[BOT ENGINE] Stockfish fallback do lokalnego:", sfErr);
         }
       }
 
-      // 2. Silnik lokalny – szybki, z księgą debiutów (~30 ms)
+      // 2. Silnik lokalny – z księgą debiutów (~30 ms fallback lub poziom początkujący)
       if (!chosenMove) {
         const localMove = findBestEngineMove(gameInstance, difficulty);
         if (localMove) {
@@ -374,9 +385,12 @@ export default function Page() {
           reply = gameInstance.move(chosenMove, { strict: false });
         } catch {
           if (chosenMove.length >= 4) {
+            const promo =
+              chosenMove.length >= 5 ? chosenMove[4].toLowerCase() : undefined;
             reply = gameInstance.move({
               from: chosenMove.slice(0, 2) as Square,
               to: chosenMove.slice(2, 4) as Square,
+              ...(promo ? { promotion: promo } : {}),
             });
           }
         }
@@ -410,7 +424,7 @@ export default function Page() {
         false,
       );
 
-      // Trener wyświetla komentarz do ruchu czarnych
+      // Trener wyświetla komentarz do ruchu bota
       setCoachInsight(replyAnalysis.insight);
       lastValidCoachInsightRef.current = replyAnalysis.insight;
 
