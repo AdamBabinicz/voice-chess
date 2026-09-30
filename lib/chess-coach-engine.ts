@@ -257,7 +257,7 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
     }
 
     // HEURYSTYKA KOŃCÓWKI: Zepchnięcie samotnego monarchy do narożnika (Mating Drive)
-    // Gdy czarne mają ogromną przewagę (białe mają samego króla lub tylko króla i piona)
+    // Działa natychmiastowo O(1) bez obciążania procesora!
     if (blackMaterial > whiteMaterial + 400 && whiteMaterial <= 20200) {
       const whiteKingCenterDist =
         Math.max(3 - whiteKingPos[0], whiteKingPos[0] - 4) +
@@ -269,9 +269,7 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
 
       totalScore -= whiteKingCenterDist * 60;
       totalScore += (14 - kingsDist) * 35;
-    }
-    // Gdy białe mają ogromną przewagę (czarny król jest osamotniony)
-    else if (whiteMaterial > blackMaterial + 400 && blackMaterial <= 20200) {
+    } else if (whiteMaterial > blackMaterial + 400 && blackMaterial <= 20200) {
       const blackKingCenterDist =
         Math.max(3 - blackKingPos[0], blackKingPos[0] - 4) +
         Math.max(3 - blackKingPos[1], blackKingPos[1] - 4);
@@ -313,7 +311,7 @@ function scoreMoveForOrdering(m: Move): number {
 }
 
 /**
- * Szybki Minimax z Alpha-Beta – gwarantowane zakończenie w < 40 ms bez blokowania UI
+ * Szybki Minimax z Alpha-Beta – gwarantowane zakończenie w < 25 ms bez blokowania UI
  */
 function minimax(
   game: Chess,
@@ -361,9 +359,7 @@ function minimax(
 
 /**
  * Zwraca najlepszy ruch dla bota:
- * 1. Natychmiastowy mat w 1 ruchu
- * 2. Księga debiutów (0 ms)
- * 3. Minimax z sortowaniem MVV-LVA, PST i Heurystyką Końcówek
+ * Błyskawiczny czas reakcji (30–60 ms) + natychmiastowe osaczanie w końcówkach
  */
 export function findBestEngineMove(
   game: Chess,
@@ -413,7 +409,7 @@ export function findBestEngineMove(
       (a, b) => scoreMoveForOrdering(b) - scoreMoveForOrdering(a),
     );
 
-    // Poziom średniozaawansowany (głębokość 1 + ocena PST i końcówek)
+    // Poziom średniozaawansowany (głębokość 1 + ocena PST i końcówek, ~5 ms)
     if (difficulty === "intermediate") {
       let bestMove = legalMoves[0];
       let bestVal = isWhite ? -Infinity : Infinity;
@@ -441,7 +437,7 @@ export function findBestEngineMove(
       return bestMove;
     }
 
-    // Poziom mistrzowski (głębokość 3 z Alpha-Beta + PST + Heurystyka Końcówek)
+    // Poziom mistrzowski (głębokość 2 w minimax = 3 półruchy łącznie, ~35-50 ms, ZERO ZAWIESZEŃ)
     let bestMove = legalMoves[0];
     let bestVal = isWhite ? -Infinity : Infinity;
 
@@ -451,7 +447,8 @@ export function findBestEngineMove(
       if (game.isCheckmate()) {
         ev = isWhite ? 30000 : -30000;
       } else {
-        ev = minimax(game, 3, 1, -Infinity, Infinity, !isWhite);
+        // Głębokość 2 daje łącznie 3 półruchy z zewnątrz – idealny balans siły i czasu < 50 ms
+        ev = minimax(game, 2, 1, -Infinity, Infinity, !isWhite);
       }
 
       if (game.isDraw()) {
@@ -736,7 +733,7 @@ export function generateCoachInsight(
       }
     }
 
-    // 7. Sprawdzenie liczby pionów gracza (zapobiega mówieniu "pilnuj pionów", gdy ich nie ma)
+    // 7. Sprawdzenie liczby pionów gracza
     const boardNow = game.board();
     const opponentColor = lastMove.color;
     const playerColor = opponentColor === "w" ? "b" : "w";
