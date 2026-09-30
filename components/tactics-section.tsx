@@ -58,11 +58,15 @@ export function TacticsSection({
             </p>
           </div>
 
-          {/* Filtry poziomu trudności */}
+          {/* Filtry poziomu trudności – 100% zgodne z WCAG WAI-ARIA role="group" + aria-pressed */}
           <div
             className="flex flex-wrap items-center gap-2"
-            role="tablist"
-            aria-label="Filtry zadań taktycznych"
+            role="group"
+            aria-label={
+              lang === "pl"
+                ? "Filtry zadań taktycznych według poziomu trudności"
+                : "Tactical puzzle difficulty filters"
+            }
           >
             <div className="mr-1 flex items-center gap-1.5 text-xs font-semibold text-[#3c4a41] dark:text-[#94a3b8]">
               <Filter className="size-3.5" />
@@ -81,8 +85,7 @@ export function TacticsSection({
                 <button
                   key={level}
                   type="button"
-                  role="tab"
-                  aria-selected={isSelected}
+                  aria-pressed={isSelected}
                   onClick={() => setFilter(level)}
                   className={cn(
                     "cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2d4e13]",
