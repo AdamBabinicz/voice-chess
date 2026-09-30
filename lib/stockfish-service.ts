@@ -89,7 +89,7 @@ class StockfishManager {
   }
 
   /**
-   * Błyskawicznie i bezpiecznie sprawdza dostępność pliku /stockfish.js (max 250 ms z AbortController).
+   * Błyskawicznie i bezpiecznie sprawdza dostępność pliku /stockfish.js (max 600 ms z AbortController).
    */
   private async checkWorkerFileExists(): Promise<boolean> {
     if (typeof window === "undefined" || typeof Worker === "undefined") {
@@ -97,7 +97,7 @@ class StockfishManager {
     }
     try {
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 250);
+      const timeoutId = window.setTimeout(() => controller.abort(), 600);
 
       const res = await fetch("/stockfish.js", {
         method: "GET",
@@ -114,8 +114,8 @@ class StockfishManager {
   }
 
   /**
-   * Sonda workera: jeśli plik nie istnieje lub nie odpowiada w 400 ms,
-   * natychmiast i permanentnie przełączamy się na silnik lokalny.
+   * Sonda workera: jeśli plik nie istnieje lub nie odpowiada w 1200 ms,
+   * przełączamy się na silnik lokalny.
    */
   private probeWorker(): Promise<boolean> {
     if (this.health === "ready" && this.worker) {
@@ -153,8 +153,8 @@ class StockfishManager {
         try {
           this.worker = new Worker("/stockfish.js");
 
-          // Twardy limit 400 ms na handshake UCI
-          const watchdog = window.setTimeout(() => finish(false), 400);
+          // Bezpieczny limit 1200 ms na handshake UCI
+          const watchdog = window.setTimeout(() => finish(false), 1200);
 
           this.worker.onmessage = (event: MessageEvent) => {
             const rawData: string =
@@ -292,7 +292,8 @@ class StockfishManager {
   }
 
   /**
-   * Gwarantuje wynik w <= 500 ms (0 ms gdy brak workera, natychmiastowy fallback lokalny).
+   * Elastyczna ocena pozycji: natychmiastowy zwrot, gdy silnik znajdzie ruch,
+   * z bezpiecznym limitem czasowym dostosowanym do żądanej głębokości.
    */
   public async evaluatePosition(
     fen: string,
@@ -300,7 +301,7 @@ class StockfishManager {
   ): Promise<StockfishEvaluation> {
     try {
       const probeTimeout = new Promise<boolean>((resolve) =>
-        window.setTimeout(() => resolve(false), 300),
+        window.setTimeout(() => resolve(false), 1200),
       );
       const workerOk = await Promise.race([this.probeWorker(), probeTimeout]);
 
@@ -316,13 +317,16 @@ class StockfishManager {
       return new Promise<StockfishEvaluation>((resolve) => {
         this.currentEvaluation = {};
 
+        // Dynamiczny limit: np. dla głębokości 14 to 2100 ms, dla głębokości 10 to 1500 ms
+        const calcTimeoutMs = Math.max(1400, depth * 150);
+
         const fuseTimerId = window.setTimeout(() => {
           this.send("stop");
-        }, 400);
+        }, calcTimeoutMs - 200);
 
         const killTimerId = window.setTimeout(() => {
           this.settlePending(this.buildBestSoFar(fen));
-        }, 500);
+        }, calcTimeoutMs);
 
         this.pending = {
           resolve,

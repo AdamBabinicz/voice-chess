@@ -1,7 +1,7 @@
 // lib/chess-coach-engine.ts
 import { Chess, Move, PieceSymbol, Square } from "chess.js";
 
-// Re-eksport modułu łamigłówek taktycznych (gwarantuje wsteczną zgodność bez zmian importów w projekcie)
+// Re-eksport modułu łamigłówek taktycznych (gwarantuje wsteczną zgodność)
 export * from "./tactical-puzzles";
 
 export interface CoachAnalysis {
@@ -189,7 +189,8 @@ export function translateStockfishEvaluation(
 }
 
 /**
- * Oblicza statyczną ocenę pozycji z perspektywy białych (w centypionach)
+ * Oblicza statyczną ocenę pozycji z perspektywy białych (w centypionach).
+ * Zawiera zaawansowaną heurystykę spychania samotnego króla do narożnika (Mating Drive).
  */
 function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
   try {
@@ -206,14 +207,27 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
     let hasQueens = false;
     const board = game.board();
 
+    let whiteMaterial = 0;
+    let blackMaterial = 0;
+    let whiteKingPos: [number, number] = [4, 4];
+    let blackKingPos: [number, number] = [0, 4];
+
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
         const piece = board[r][c];
         if (!piece) continue;
 
+        if (piece.type === "k") {
+          if (piece.color === "w") whiteKingPos = [r, c];
+          else blackKingPos = [r, c];
+        }
+
         if (piece.type === "q") hasQueens = true;
         const baseVal = CENTIPAWN_VALUES[piece.type] || 0;
         let positionalVal = 0;
+
+        if (piece.color === "w") whiteMaterial += baseVal;
+        else blackMaterial += baseVal;
 
         const idx = piece.color === "w" ? r * 8 + c : (7 - r) * 8 + c;
 
@@ -242,9 +256,32 @@ function evaluateStaticPosition(game: Chess, plyDepth: number = 0): number {
       }
     }
 
-    if (hasQueens) {
-      if (board[7]?.[4]?.type === "k") totalScore -= 25;
-      if (board[0]?.[4]?.type === "k") totalScore += 25;
+    // HEURYSTYKA KOŃCÓWKI: Zepchnięcie samotnego monarchy do narożnika (Mating Drive)
+    // Gdy czarne mają ogromną przewagę (białe mają samego króla lub tylko króla i piona)
+    if (blackMaterial > whiteMaterial + 400 && whiteMaterial <= 20200) {
+      const whiteKingCenterDist =
+        Math.max(3 - whiteKingPos[0], whiteKingPos[0] - 4) +
+        Math.max(3 - whiteKingPos[1], whiteKingPos[1] - 4);
+
+      const kingsDist =
+        Math.abs(whiteKingPos[0] - blackKingPos[0]) +
+        Math.abs(whiteKingPos[1] - blackKingPos[1]);
+
+      totalScore -= whiteKingCenterDist * 60;
+      totalScore += (14 - kingsDist) * 35;
+    }
+    // Gdy białe mają ogromną przewagę (czarny król jest osamotniony)
+    else if (whiteMaterial > blackMaterial + 400 && blackMaterial <= 20200) {
+      const blackKingCenterDist =
+        Math.max(3 - blackKingPos[0], blackKingPos[0] - 4) +
+        Math.max(3 - blackKingPos[1], blackKingPos[1] - 4);
+
+      const kingsDist =
+        Math.abs(whiteKingPos[0] - blackKingPos[0]) +
+        Math.abs(whiteKingPos[1] - blackKingPos[1]);
+
+      totalScore += blackKingCenterDist * 60;
+      totalScore += (14 - kingsDist) * 35;
     }
 
     return totalScore;
@@ -267,7 +304,10 @@ function scoreMoveForOrdering(m: Move): number {
     score += 900;
   }
   if (m.san && m.san.includes("+")) {
-    score += 100;
+    score += 150;
+  }
+  if (m.san && m.san.includes("#")) {
+    score += 25000;
   }
   return score;
 }
@@ -323,7 +363,7 @@ function minimax(
  * Zwraca najlepszy ruch dla bota:
  * 1. Natychmiastowy mat w 1 ruchu
  * 2. Księga debiutów (0 ms)
- * 3. Minimax z sortowaniem MVV-LVA i PST (~30-50 ms, zero zawieszeń)
+ * 3. Minimax z sortowaniem MVV-LVA, PST i Heurystyką Końcówek
  */
 export function findBestEngineMove(
   game: Chess,
@@ -373,7 +413,7 @@ export function findBestEngineMove(
       (a, b) => scoreMoveForOrdering(b) - scoreMoveForOrdering(a),
     );
 
-    // Poziom średniozaawansowany (głębokość 1 + ocena pozycyjna PST, ~5 ms)
+    // Poziom średniozaawansowany (głębokość 1 + ocena PST i końcówek)
     if (difficulty === "intermediate") {
       let bestMove = legalMoves[0];
       let bestVal = isWhite ? -Infinity : Infinity;
@@ -401,7 +441,7 @@ export function findBestEngineMove(
       return bestMove;
     }
 
-    // Poziom mistrzowski (głębokość 2 z Alpha-Beta + PST, ~30-50 ms, brak zawieszeń UI)
+    // Poziom mistrzowski (głębokość 3 z Alpha-Beta + PST + Heurystyka Końcówek)
     let bestMove = legalMoves[0];
     let bestVal = isWhite ? -Infinity : Infinity;
 
@@ -411,7 +451,7 @@ export function findBestEngineMove(
       if (game.isCheckmate()) {
         ev = isWhite ? 30000 : -30000;
       } else {
-        ev = minimax(game, 2, 1, -Infinity, Infinity, !isWhite);
+        ev = minimax(game, 3, 1, -Infinity, Infinity, !isWhite);
       }
 
       if (game.isDraw()) {
@@ -696,18 +736,28 @@ export function generateCoachInsight(
       }
     }
 
-    // 7. Ruch przeciwnika – bezpieczna analiza zagrożeń
+    // 7. Sprawdzenie liczby pionów gracza (zapobiega mówieniu "pilnuj pionów", gdy ich nie ma)
+    const boardNow = game.board();
+    const opponentColor = lastMove.color;
+    const playerColor = opponentColor === "w" ? "b" : "w";
+    let playerPawnCount = 0;
+    for (const row of boardNow) {
+      for (const p of row) {
+        if (p && p.color === playerColor && p.type === "p") {
+          playerPawnCount++;
+        }
+      }
+    }
+
+    // 8. Ruch przeciwnika – bezpieczna analiza zagrożeń i podstawień
     if (!isPlayerMove) {
       try {
-        const opponentColor = lastMove.color;
-        const playerColor = opponentColor === "w" ? "b" : "w";
-        const board = game.board();
         let threatenedQueenSquare: Square | null = null;
         let threatenedRookSquare: Square | null = null;
 
         for (let r = 0; r < 8; r++) {
           for (let c = 0; c < 8; c++) {
-            const p = board[r]?.[c];
+            const p = boardNow[r]?.[c];
             if (p && p.color === playerColor) {
               const sq = `${String.fromCharCode(97 + c)}${8 - r}` as Square;
               const isAttacked =
@@ -762,7 +812,7 @@ export function generateCoachInsight(
       }
     }
 
-    // 8. Roszada
+    // 9. Roszada
     if (lastMove.san === "O-O" || lastMove.san === "O-O-O") {
       if (isPlayerMove) {
         const pl = `Roszada wykonana. Twój król chowa się za zwartym łańcuchem pionów, a wieża natychmiast włącza się do gry w centrum.`;
@@ -781,7 +831,7 @@ export function generateCoachInsight(
       }
     }
 
-    // 9. Otwarcie (ruch 1–4)
+    // 10. Otwarcie (ruch 1–4) – pełna baza debiutowa
     const moveNumber = Math.ceil(game.history().length / 2);
 
     if (moveNumber <= 4) {
@@ -859,7 +909,7 @@ export function generateCoachInsight(
       }
     }
 
-    // 10. Figury ogólne
+    // 11. Figury ogólne (pełne opisy dla króla, skoczka, wieży, hetmana, piona)
     if (lastMove.piece === "k") {
       const pl = isPlayerMove
         ? `Ruch królem na ${lastMove.to}. Pamiętaj o bezpieczeństwie monarchy, gdy na planszy są jeszcze ciężkie figury.`
@@ -889,10 +939,14 @@ export function generateCoachInsight(
     if (lastMove.piece === "r") {
       const pl = isPlayerMove
         ? `Wieża zajmuje kolumnę ${lastMove.to[0]}. Pamiętaj: wieże kochają otwarte linie i walkę o 7. linię.`
-        : `Wieża przeciwnika wkracza na linię ${lastMove.to[0]}. Pilnuj obrony własnych pionów.`;
+        : playerPawnCount > 0
+          ? `Wieża przeciwnika wkracza na linię ${lastMove.to[0]}. Pilnuj obrony własnych pionów.`
+          : `Wieża przeciwnika wkracza na linię ${lastMove.to[0]}, odcinając Twojego króla od wolnych pól!`;
       const en = isPlayerMove
         ? `Rook takes the ${lastMove.to[0]}-file. Rooks thrive on open files and invading the 7th rank.`
-        : `Opponent's rook eyes the ${lastMove.to[0]}-file. Guard your pawn base.`;
+        : playerPawnCount > 0
+          ? `Opponent's rook eyes the ${lastMove.to[0]}-file. Guard your pawn base.`
+          : `Opponent's rook occupies the ${lastMove.to[0]}-file, cutting off your king!`;
       return {
         insight: lang === "pl" ? pl : en,
         audioText: lang === "pl" ? pl : en,
