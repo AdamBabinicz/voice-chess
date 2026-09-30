@@ -13,8 +13,8 @@ ChessTactics Audio Coach enables visually impaired players, blindfold practition
 - Accessibility: 100% WCAG 2.1 AA compliant, screen-reader friendly, and keyboard operable.
 
 ## Links & Documentation
-- Main Application: https://chesstactics-audio.netlify.app/
-- Source Code: https://github.com/AdamBabinicz/voice-chess
-- LLM Full Reference: https://chesstactics-audio.netlify.app/llms-full.txt
-- Sitemap: https://chesstactics-audio.netlify.app/sitemap.xml
-- Web App Manifest: https://chesstactics-audio.netlify.app/site.webmanifest
+- [Main Application](https://chesstactics-audio.netlify.app/): Voice-controlled chess training web app
+- [Source Code](https://github.com/AdamBabinicz/voice-chess): Official GitHub repository
+- [LLM Full Reference](https://chesstactics-audio.netlify.app/llms-full.txt): Complete LLM context and architectural specifications
+- [Sitemap](https://chesstactics-audio.netlify.app/sitemap.xml): XML sitemap for search crawlers and AI agents
+- [Web App Manifest](https://chesstactics-audio.netlify.app/site.webmanifest): Progressive Web App configuration file
