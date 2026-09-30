@@ -1,3 +1,4 @@
+// app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
@@ -170,8 +171,13 @@ export default function RootLayout({
   return (
     <html lang="pl" suppressHydrationWarning>
       <head>
-        {/* dns-prefetch rozwiązuje IP w tle bez kosztownego nawiązywania połączenia TLS */}
+        {/* Preconnect i dns-prefetch do serwerów analityki Google */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link
+          rel="preconnect"
+          href="https://www.googletagmanager.com"
+          crossOrigin="anonymous"
+        />
       </head>
       <body
         suppressHydrationWarning
@@ -187,9 +193,9 @@ export default function RootLayout({
           />
         </noscript>
 
-        {/* Czysty skrypt z next/script: Consent Mode v2 + opóźniony loader */}
+        {/* 1. Google Consent Mode v2 – inicjalizacja dataLayer i domyślna ochrona prywatności */}
         <Script
-          id="gtm-analytics"
+          id="gtm-consent-init"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
@@ -202,33 +208,17 @@ export default function RootLayout({
                 'ad_personalization': 'denied',
                 'wait_for_update': 500
               });
-
-              (function() {
-                var loaded = false;
-                function loadGTM() {
-                  if (loaded) return;
-                  loaded = true;
-                  ['scroll', 'mousemove', 'touchstart', 'keydown'].forEach(function(e) {
-                    window.removeEventListener(e, loadGTM, { passive: true });
-                  });
-                  window.dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
-                  var f = document.getElementsByTagName('script')[0],
-                      j = document.createElement('script');
-                  j.async = true;
-                  j.src = 'https://www.googletagmanager.com/gtm.js?id=${GTM_ID}';
-                  if (f && f.parentNode) {
-                    f.parentNode.insertBefore(j, f);
-                  } else {
-                    document.head.appendChild(j);
-                  }
-                }
-                ['scroll', 'mousemove', 'touchstart', 'keydown'].forEach(function(e) {
-                  window.addEventListener(e, loadGTM, { passive: true, once: true });
-                });
-                setTimeout(loadGTM, 5000);
-              })();
+              gtag('js', new Date());
+              window.dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
             `,
           }}
+        />
+
+        {/* 2. Bezpośredni skrypt GTM – widoczny dla robotów SEO w kodzie HTML */}
+        <Script
+          id="gtm-script-loader"
+          strategy="afterInteractive"
+          src={`https://www.googletagmanager.com/gtm.js?id=${GTM_ID}`}
         />
 
         {/* Schema.org Structured Data */}
