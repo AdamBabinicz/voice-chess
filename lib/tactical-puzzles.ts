@@ -309,23 +309,20 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
     difficulty: "master",
     difficultyLabel: { pl: "Mistrz", en: "Master" },
     icon: "🎯",
-    fen: "3r2k1/3q1ppp/8/8/8/8/4QPPP/3R2K1 w - - 0 1",
+    // Pozycja z wieżą na c8 i wieżą na c1 z luftem h3 – kanoniczna geometria odciągnięcia
+    fen: "2r3k1/3q1ppp/8/8/8/7P/4QPP1/2R3K1 w - - 0 1",
     hint: {
-      pl: "Motyw taktyczny: Odciągnięcie obrońcy! Czarna wieża na d8 pilnuje 8. linii przed matem hetmanem. Zbij hetmana na d7 ruchem wieży (Rxd7!), odciągając czarną wieżę od obrony 8. linii!",
-      en: "Tactical Motif: Deflection! Black's rook on d8 guards the 8th rank. Capture the queen on d7 with your rook (Rxd7!), deflecting Black's rook from 8th rank defense!",
+      pl: "Motyw taktyczny: Odciągnięcie obrońcy! Czarny hetman na d7 pilnuje wieży na c8 przed matem. Wtargnij hetmanem na e7 (Qe7!), odciągając czarnego hetmana od obrony wieży!",
+      en: "Tactical Motif: Deflection! Black's queen on d7 guards the rook on c8. Invade with Qe7! attacking the queen and deflecting it from defending the rook!",
     },
-    verify: (san: string) =>
-      san.startsWith("Rxd7") ||
-      san.startsWith("Rd7") ||
-      san.includes("xd7") ||
-      san.startsWith("Qe7"),
+    verify: (san: string) => san.startsWith("Qe7"),
     successText: {
-      pl: "Genialne odciągnięcie (Rxd7!)! Czarna wieża musi odbić na d7, opuszczając 8. linię, co pozwala Twojemu hetmanowi zadać natychmiastowego mata na e8 (Qe8#)!",
-      en: "Superb deflection (Rxd7!)! Black's rook is forced to recapture on d7, abandoning the 8th rank and allowing your queen to deliver checkmate on e8 (Qe8#)!",
+      pl: "Arcymistrzowskie posunięcie (Qe7!)! Czarny hetman po zbiciu Twojego hetmana (Qxe7) opuszcza przekątną obrony wieży c8, co pozwala Twojej wieży zadać decydującego mata na 8. linii: 2. Rxc8+!",
+      en: "Grandmaster strike (Qe7!)! If Black captures with Qxe7, the queen abandons the defense of the c8 rook, allowing your rook to deliver back-rank checkmate: 2. Rxc8+!",
     },
     failureText: {
-      pl: "To nie odciąga obrońcy. Zbij czarnego hetmana wieżą na d7 (Rxd7!) — czarna wieża będzie musiała odbić, porzucając obronę 8. linii!",
-      en: "That does not deflect the defender. Capture Black's queen with your rook on d7 (Rxd7!) — Black's rook must recapture, abandoning the 8th rank!",
+      pl: "To nie odciąga obrońcy. Zagraj hetmanem na e7 (Qe7!) — jeśli czarny hetman go zbije, wieża na c8 straci obronę i padnie z matem!",
+      en: "That misses the deflection. Play Qe7! — if Black's queen takes it, the c8 rook loses its guard and falls to back-rank mate!",
     },
   },
 ];
