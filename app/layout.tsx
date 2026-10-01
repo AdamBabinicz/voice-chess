@@ -183,12 +183,13 @@ export default function RootLayout({
         suppressHydrationWarning
         className="antialiased min-h-screen bg-background text-foreground"
       >
-        {/* Google Tag Manager (noscript fallback) bez inline-styles */}
+        {/* Google Tag Manager (noscript fallback) bez inline-styles, z tytułem dla WCAG */}
         <noscript>
           <iframe
             src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
             height="0"
             width="0"
+            title="Google Tag Manager"
             className="hidden"
           />
         </noscript>
