@@ -70,6 +70,8 @@ export function VoiceController({
   }, [isSpeaking]);
 
   const initRecognition = useCallback(() => {
+    if (typeof window === "undefined") return null;
+
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
@@ -80,7 +82,7 @@ export function VoiceController({
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    recognition.continuous = voiceMode === "continuous";
     recognition.interimResults = false;
     recognition.lang = lang === "pl" ? "pl-PL" : "en-US";
 
@@ -103,6 +105,17 @@ export function VoiceController({
 
     recognition.onerror = (event: any) => {
       if (event.error === "no-speech" || event.error === "aborted") return;
+
+      // Zabezpieczenie przed nieskończoną pętlą przy braku uprawnień lub barierze sieciowej
+      if (
+        event.error === "not-allowed" ||
+        event.error === "service-not-allowed" ||
+        event.error === "audio-capture"
+      ) {
+        userWantsListeningRef.current = false;
+        isListeningRef.current = false;
+        setIsListening(false);
+      }
     };
 
     recognition.onend = () => {
@@ -111,8 +124,10 @@ export function VoiceController({
         try {
           recognition.start();
           setIsListening(true);
+          isListeningRef.current = true;
         } catch {
-          // Ignoruj
+          setIsListening(false);
+          isListeningRef.current = false;
         }
       } else if (!userWantsListeningRef.current) {
         setIsListening(false);
@@ -121,7 +136,7 @@ export function VoiceController({
     };
 
     return recognition;
-  }, [lang, onMoveParsed]);
+  }, [lang, voiceMode, onMoveParsed]);
 
   useEffect(() => {
     const rec = initRecognition();
@@ -159,7 +174,9 @@ export function VoiceController({
         try {
           recognitionRef.current?.start();
         } catch {
-          // Ignoruj
+          userWantsListeningRef.current = false;
+          isListeningRef.current = false;
+          setIsListening(false);
         }
       } else {
         // Użytkownik włączył, ale lektor jeszcze mówi - mikrofon uruchomi się automatycznie po wygaśnięciu mowy lektora
@@ -215,7 +232,7 @@ export function VoiceController({
         </span>
       )}
 
-      {/* Dostępne pole wpisywania ruchu */}
+      {/* Dostępne pole wpisywania ruchu zgodne z WCAG 2.1 AA */}
       <form
         onSubmit={handleManualSubmit}
         className="flex flex-1 items-center gap-2"
@@ -225,6 +242,7 @@ export function VoiceController({
           value={manualInput}
           onChange={(e) => setManualInput(e.target.value)}
           placeholder={labels.inputPlaceholder}
+          aria-label={labels.inputPlaceholder}
           className="flex-1 rounded-xl border border-[#dce5d8] bg-[#f8faf7] px-3.5 py-2.5 text-xs text-[#17201c] placeholder:text-[#88958d] focus:border-[#789b35] focus:outline-none dark:border-[#2f3d33] dark:bg-[#202b25] dark:text-[#edf2ed] dark:placeholder:text-[#6f7e75]"
         />
         <Button
@@ -285,7 +303,7 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     return "O-O";
   }
 
-  // 2. Liczby słowne
+  // 2. Normalizacja słownych liczb i liter fonetycznych w języku polskim
   const plNumbers: Record<string, string> = {
     jeden: "1",
     dwa: "2",
@@ -299,8 +317,23 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     osiem: "8",
   };
 
+  const plLetters: Record<string, string> = {
+    a: "a",
+    be: "b",
+    ce: "c",
+    de: "d",
+    e: "e",
+    ef: "f",
+    gie: "g",
+    ha: "h",
+  };
+
   const words = clean.split(" ");
-  const normalizedWords = words.map((w) => plNumbers[w] || w);
+  const normalizedWords = words.map((w) => {
+    if (plNumbers[w]) return plNumbers[w];
+    if (plLetters[w]) return plLetters[w];
+    return w;
+  });
   const normalizedText = normalizedWords.join(" ");
 
   // 3. Figury
