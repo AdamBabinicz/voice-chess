@@ -1,6 +1,7 @@
 // components/coach-panel.tsx
 "use client";
 
+import { useRef, useEffect } from "react";
 import {
   AudioLines,
   Flag,
@@ -67,6 +68,15 @@ export function CoachPanel({
   labels,
 }: CoachPanelProps) {
   const displayInsight = (coachInsight || "").trim();
+  const movesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Automatyczne przewijanie listy posunięć do najnowszego ruchu
+  useEffect(() => {
+    if (movesContainerRef.current) {
+      movesContainerRef.current.scrollTop =
+        movesContainerRef.current.scrollHeight;
+    }
+  }, [moves.length]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -99,7 +109,9 @@ export function CoachPanel({
           </div>
         </div>
 
+        {/* Dynamiczny komunikat z aria-live pod kątem WCAG 4.1.3 */}
         <p
+          aria-live="polite"
           suppressHydrationWarning
           className="font-serif text-sm italic leading-relaxed text-[#2a362f] dark:text-[#e2e8f0]"
         >
@@ -111,6 +123,7 @@ export function CoachPanel({
             type="button"
             onClick={onReplayAudio}
             disabled={coachMuted}
+            aria-label={labels.replay}
             className="flex items-center gap-1.5 text-xs font-bold text-[#2d4e13] disabled:opacity-40 dark:text-[#bcee68] hover:underline cursor-pointer"
           >
             {isSpeaking ? (
@@ -174,7 +187,13 @@ export function CoachPanel({
           </span>
         </div>
 
-        <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#d8e2d4] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e]">
+        <div
+          ref={movesContainerRef}
+          tabIndex={0}
+          role="region"
+          aria-label={labels.moves}
+          className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#d8e2d4] bg-[#fbfcfa] p-3 font-mono text-xs dark:border-[#334238] dark:bg-[#1b251e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2d4e13]"
+        >
           {moves.length ? (
             moves.map((m, i) => (
               <span
