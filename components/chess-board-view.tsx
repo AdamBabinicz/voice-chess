@@ -1,7 +1,7 @@
 // components/chess-board-view.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { PieceSymbol, Color } from "chess.js";
 import { ChessPiece } from "@/components/chess-piece";
@@ -36,10 +36,26 @@ export function ChessBoardView({
   labels,
 }: ChessBoardViewProps) {
   const [isPeeking, setIsPeeking] = useState(false);
+  const peekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Bezpieczne czyszczenie timera przy odmontowaniu komponentu
+  useEffect(() => {
+    return () => {
+      if (peekTimeoutRef.current) {
+        clearTimeout(peekTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const triggerPeek = () => {
+    if (peekTimeoutRef.current) {
+      clearTimeout(peekTimeoutRef.current);
+    }
     setIsPeeking(true);
-    setTimeout(() => setIsPeeking(false), 3000);
+    peekTimeoutRef.current = setTimeout(() => {
+      setIsPeeking(false);
+      peekTimeoutRef.current = null;
+    }, 3000);
   };
 
   const isHidden = blindfold && !isPeeking;
@@ -47,11 +63,18 @@ export function ChessBoardView({
   const getSquareAriaLabel = (
     squareName: string,
     piece: BoardPiece | null,
+    isSelected: boolean,
   ): string => {
+    const selectedSuffix = isSelected
+      ? lang === "pl"
+        ? ", wybrane"
+        : ", selected"
+      : "";
+
     if (!piece) {
       return lang === "pl"
-        ? `Pole ${squareName}, puste`
-        : `Square ${squareName}, empty`;
+        ? `Pole ${squareName}, puste${selectedSuffix}`
+        : `Square ${squareName}, empty${selectedSuffix}`;
     }
 
     const colorName =
@@ -87,8 +110,8 @@ export function ChessBoardView({
         : pieceTypeNamesEn[piece.type] || piece.type;
 
     return lang === "pl"
-      ? `Pole ${squareName}, ${colorName} ${pieceName}`
-      : `Square ${squareName}, ${colorName} ${pieceName}`;
+      ? `Pole ${squareName}, ${colorName} ${pieceName}${selectedSuffix}`
+      : `Square ${squareName}, ${colorName} ${pieceName}${selectedSuffix}`;
   };
 
   return (
@@ -113,7 +136,8 @@ export function ChessBoardView({
                   key={i}
                   type="button"
                   onClick={() => onSquareClick(i)}
-                  aria-label={getSquareAriaLabel(squareName, piece)}
+                  aria-pressed={isSelected}
+                  aria-label={getSquareAriaLabel(squareName, piece, isSelected)}
                   className={cn(
                     "relative flex h-full w-full items-center justify-center overflow-hidden p-0.5 select-none focus:outline-none focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-[#a4d847] focus-visible:ring-inset transition-colors cursor-pointer",
                     isLight ? "bg-[#eef4e8]" : "bg-[#a8c283]",
