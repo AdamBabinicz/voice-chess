@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { ChevronRight, Filter } from "lucide-react";
-import { TACTICAL_PUZZLES, TacticalPuzzle } from "@/lib/chess-coach-engine";
+import { TACTICAL_PUZZLES, TacticalPuzzle } from "@/lib/tactical-puzzles";
 import { Lang } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +114,7 @@ export function TacticsSection({
                 key={puzzle.id}
                 role="button"
                 tabIndex={0}
+                aria-pressed={isActive}
                 onClick={() => onSelectPuzzle(originalIndex)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -121,7 +122,7 @@ export function TacticsSection({
                     onSelectPuzzle(originalIndex);
                   }
                 }}
-                aria-label={`${puzzle.title[lang]} - ${puzzle.difficultyLabel[lang]}`}
+                aria-label={`${puzzle.title[lang]} - ${puzzle.difficultyLabel[lang]}${isActive ? (lang === "pl" ? " (aktualnie wybrane)" : " (currently selected)") : ""}`}
                 className={cn(
                   "group relative flex flex-col justify-between rounded-2xl border p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2d4e13]",
                   isActive
