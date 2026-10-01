@@ -269,10 +269,8 @@ export default function Page() {
     if (gameInstance.isGameOver() || isResigned) return;
 
     try {
-      let chosenMove:
-        | string
-        | { from: string; to: string; promotion?: string }
-        | null = null;
+      let chosenMove: { from: Square; to: Square; promotion?: string } | null =
+        null;
 
       // Szybki lokalny Minimax (<50 ms, MVV-LVA, Mating Drive, Księga Debiutów)
       const localMove = findBestEngineMove(gameInstance, difficulty);
@@ -283,8 +281,8 @@ export default function Page() {
             (localMove.from[1] === "2" && localMove.to[1] === "1"));
 
         chosenMove = {
-          from: localMove.from,
-          to: localMove.to,
+          from: localMove.from as Square,
+          to: localMove.to as Square,
           ...(isPromo ? { promotion: localMove.promotion || "q" } : {}),
         };
       }
@@ -293,33 +291,15 @@ export default function Page() {
         const legal = gameInstance.moves({ verbose: true });
         if (legal.length > 0) {
           chosenMove = {
-            from: legal[0].from,
-            to: legal[0].to,
+            from: legal[0].from as Square,
+            to: legal[0].to as Square,
           };
         }
       }
 
       if (!chosenMove) return;
 
-      let reply: Move | null = null;
-      if (typeof chosenMove === "string") {
-        try {
-          reply = gameInstance.move(chosenMove, { strict: false });
-        } catch {
-          if (chosenMove.length >= 4) {
-            const promo =
-              chosenMove.length >= 5 ? chosenMove[4].toLowerCase() : undefined;
-            reply = gameInstance.move({
-              from: chosenMove.slice(0, 2) as Square,
-              to: chosenMove.slice(2, 4) as Square,
-              ...(promo ? { promotion: promo } : {}),
-            });
-          }
-        }
-      } else {
-        reply = gameInstance.move(chosenMove as any);
-      }
-
+      const reply: Move | null = gameInstance.move(chosenMove);
       if (!reply) return;
 
       setBoard([...gameInstance.board()]);
