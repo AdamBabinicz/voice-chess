@@ -5,7 +5,7 @@
  * bierek szachowych bez konieczności pobierania zewnętrznych plików audio.
  */
 
-type SoundType = "move" | "capture" | "check" | "illegal" | "victory";
+export type SoundType = "move" | "capture" | "check" | "illegal" | "victory";
 
 let audioCtx: AudioContext | null = null;
 
@@ -33,7 +33,7 @@ function getAudioContext(): AudioContext | null {
 
     if (audioCtx && audioCtx.state === "suspended") {
       audioCtx.resume().catch(() => {
-        // Ignorujemy jeśli przeglądarka czeka na interakcję
+        // Ignorujemy jeśli przeglądarka czeka na bezpośrednią interakcję
       });
     }
 
@@ -41,6 +41,40 @@ function getAudioContext(): AudioContext | null {
   } catch {
     audioCtx = null;
     return null;
+  }
+}
+
+/**
+ * Automatyczne odblokowanie AudioContext na urządzeniach mobilnych (iOS Safari / Android)
+ * przy pierwszym dotknięciu lub wciśnięciu klawisza przez użytkownika.
+ */
+if (typeof window !== "undefined") {
+  const unlock = () => {
+    try {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+    } catch {
+      // Ignoruj błąd odblokowania
+    }
+  };
+
+  window.addEventListener("pointerdown", unlock, { once: true, passive: true });
+  window.addEventListener("keydown", unlock, { once: true, passive: true });
+}
+
+/**
+ * Jawne odblokowanie kontekstu audio przy interakcji użytkownika
+ */
+export function unlockAudio(): void {
+  try {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+  } catch {
+    // Ignoruj
   }
 }
 
