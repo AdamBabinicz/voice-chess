@@ -19,8 +19,8 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
     id: 0,
     title: { pl: "Widełki skoczkiem", en: "Knight Fork" },
     desc: {
-      pl: "Atakuj króla i ciężką figurę jednocześnie",
-      en: "Attack king and major piece simultaneously",
+      pl: "Zaszachuj króla i zaatakuj bierki w obozie rywala",
+      en: "Check the king and fork pieces in enemy camp",
     },
     difficulty: "beginner",
     difficultyLabel: { pl: "Początkujący", en: "Beginner" },
@@ -135,10 +135,11 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
     },
     verify: (san: string) =>
       san.startsWith("Bf7") ||
+      san.startsWith("Bc6") ||
+      san.includes("f7+") ||
+      san.includes("c6+") ||
       san.startsWith("Bh7") ||
-      san.startsWith("Bg8") ||
-      san.startsWith("Be6") ||
-      san.includes("Bf7+"),
+      san.startsWith("Be6"),
     successText: {
       pl: "Arcymistrzowskie posunięcie! Odejście gońca z szachem odsłania zabójczą linię d1-d8. Czarny hetman jest stracony!",
       en: "Grandmaster precision! Moving the bishop with check unmasks the deadly d-file attack. Black's queen is doomed!",
@@ -310,17 +311,21 @@ export const TACTICAL_PUZZLES: TacticalPuzzle[] = [
     icon: "🎯",
     fen: "3r2k1/3q1ppp/8/8/8/8/4QPPP/3R2K1 w - - 0 1",
     hint: {
-      pl: "Motyw taktyczny: Odciągnięcie obrońcy! Czarna wieża na d8 pilnuje 8. linii przed matem. Zagraj hetmanem na e7 (Qe7!), stawiając czarne pod ścianą!",
-      en: "Tactical Motif: Deflection! Black's rook on d8 guards the 8th rank from back-rank mate. Invade with Qe7! putting Black in an impossible bind!",
+      pl: "Motyw taktyczny: Odciągnięcie obrońcy! Czarna wieża na d8 pilnuje 8. linii przed matem hetmanem. Zbij hetmana na d7 ruchem wieży (Rxd7!), odciągając czarną wieżę od obrony 8. linii!",
+      en: "Tactical Motif: Deflection! Black's rook on d8 guards the 8th rank. Capture the queen on d7 with your rook (Rxd7!), deflecting Black's rook from 8th rank defense!",
     },
-    verify: (san: string) => san.startsWith("Qe7"),
+    verify: (san: string) =>
+      san.startsWith("Rxd7") ||
+      san.startsWith("Rd7") ||
+      san.includes("xd7") ||
+      san.startsWith("Qe7"),
     successText: {
-      pl: "Arcymistrzowskie posunięcie (Qe7!)! Jeśli hetman czarnych zbije Twojego hetmana, Twoja wieża z d1 bije na d8 z natychmiastowym matem! Obrona czarnych została sparaliżowana.",
-      en: "Grandmaster strike (Qe7!)! If Black's queen captures yours, your rook on d1 captures on d8 with immediate checkmate! Black's defense is paralyzed.",
+      pl: "Genialne odciągnięcie (Rxd7!)! Czarna wieża musi odbić na d7, opuszczając 8. linię, co pozwala Twojemu hetmanowi zadać natychmiastowego mata na e8 (Qe8#)!",
+      en: "Superb deflection (Rxd7!)! Black's rook is forced to recapture on d7, abandoning the 8th rank and allowing your queen to deliver checkmate on e8 (Qe8#)!",
     },
     failureText: {
-      pl: "To nie odciąga obrońcy. Wkrocz hetmanem na pole e7 — zaatakujesz hetmana d7, a czarne nie mogą go zbić ze względu na mata na d8!",
-      en: "That does not deflect the defender. Infiltrate with queen to e7 — striking Black's queen while threatening mate on d8!",
+      pl: "To nie odciąga obrońcy. Zbij czarnego hetmana wieżą na d7 (Rxd7!) — czarna wieża będzie musiała odbić, porzucając obronę 8. linii!",
+      en: "That does not deflect the defender. Capture Black's queen with your rook on d7 (Rxd7!) — Black's rook must recapture, abandoning the 8th rank!",
     },
   },
 ];
