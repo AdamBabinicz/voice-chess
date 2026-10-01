@@ -100,6 +100,35 @@ export async function POST(req: Request) {
     }
 
     const pos = evaluatePosition(game);
+    const isWhite = pos.turn === "white";
+    const turnPl = isWhite ? "Białe" : "Czarne";
+    const turnEn = isWhite ? "White" : "Black";
+
+    // 0. NATYCHMIASTOWY BYPASS DLA MATA I REMISU (0 ms, bez obciążania API)
+    if (pos.isCheckmate) {
+      const insight =
+        lang === "pl"
+          ? `Mat na szachownicy! Partia zakończona zwycięstwem ${isWhite ? "czarnych" : "białych"}.`
+          : `Checkmate on the board! Game won by ${isWhite ? "Black" : "White"}.`;
+      return NextResponse.json({
+        source: "chess-engine-deterministic",
+        insight,
+        audioText: insight,
+      });
+    }
+
+    if (pos.isDraw) {
+      const insight =
+        lang === "pl"
+          ? "Partia zakończona remisem. Na planszy nie ma możliwości wygranej."
+          : "Game ended in a draw. No winning chances remain on the board.";
+      return NextResponse.json({
+        source: "chess-engine-deterministic",
+        insight,
+        audioText: insight,
+      });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
     // 1. Prawdziwa analiza Gemini AI z szybkim limitem 2100 ms (klient czeka 2500 ms)
@@ -108,7 +137,7 @@ export async function POST(req: Request) {
       const geminiTimeout = setTimeout(() => geminiController.abort(), 2100);
 
       try {
-        const turnText = pos.turn === "white" ? "Białych" : "Czarnych";
+        const turnText = isWhite ? "Białych" : "Czarnych";
         const materialDesc =
           pos.materialDiff === 0
             ? "Równowaga materiałowa"
@@ -170,7 +199,12 @@ Do not use asterisks (*), markdown, or bullet points — this will be read by br
             data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
           if (rawText) {
-            const cleanText = rawText.replace(/[*_#`"]/g, "").trim();
+            // Czyszczenie znaków markdown oraz normalizacja spacji i nowych linii pod Web Speech TTS
+            const cleanText = rawText
+              .replace(/[*_#`"]/g, "")
+              .replace(/\s+/g, " ")
+              .trim();
+
             return NextResponse.json({
               source: "gemini-ai",
               insight: cleanText,
@@ -178,7 +212,7 @@ Do not use asterisks (*), markdown, or bullet points — this will be read by br
             });
           }
         }
-      } catch (geminiError) {
+      } catch {
         // W razie timeoutu lub błędu sieci natychmiast przechodzimy do silnika regułowego
       } finally {
         clearTimeout(geminiTimeout);
@@ -186,17 +220,10 @@ Do not use asterisks (*), markdown, or bullet points — this will be read by br
     }
 
     // 2. DYNAMICZNY ZAAWANSOWANY SILNIK HEURYSTYCZNY (Błyskawiczny, 0 ms)
-    const isWhite = pos.turn === "white";
-    const turnPl = isWhite ? "Białe" : "Czarne";
-    const turnEn = isWhite ? "White" : "Black";
-
     let dynamicInsightPl = "";
     let dynamicInsightEn = "";
 
-    if (pos.isCheckmate) {
-      dynamicInsightPl = `Mat na szachownicy! Partia zakończona zwycięstwem ${isWhite ? "czarnych" : "białych"}.`;
-      dynamicInsightEn = `Checkmate on the board! Game won by ${isWhite ? "Black" : "White"}.`;
-    } else if (pos.inCheck) {
+    if (pos.inCheck) {
       const escapeMoves = pos.legalMovesCount;
       dynamicInsightPl = `Uwaga, ${turnPl} są w szachu! Konieczna natychmiastowa obrona króla – do dyspozycji jest ${escapeMoves} legalnych odpowiedzi.`;
       dynamicInsightEn = `Warning, ${turnEn} is in check! Immediate king safety is required with ${escapeMoves} legal responses available.`;
