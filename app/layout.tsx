@@ -20,7 +20,12 @@ export const metadata: Metadata = {
   applicationName: "ChessTactics Audio Coach",
   manifest: "/site.webmanifest",
   icons: {
+    // /favicon.ico ZAWSZE na pierwszym miejscu dla botów SEO (np. SEO Site Checkup)
     icon: [
+      {
+        url: "/favicon.ico",
+        sizes: "32x32",
+      },
       {
         url: "/favicon.svg",
         type: "image/svg+xml",
@@ -39,10 +44,6 @@ export const metadata: Metadata = {
         url: "/web-app-manifest-512x512.png",
         sizes: "512x512",
         type: "image/png",
-      },
-      {
-        url: "/favicon.ico",
-        sizes: "32x32",
       },
     ],
     shortcut: "/favicon.ico",
@@ -171,6 +172,11 @@ export default function RootLayout({
   return (
     <html lang="pl" suppressHydrationWarning>
       <head>
+        {/* Bezpośrednie linki do favikony dla botów SEO (SEO Site Checkup) */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
         {/* Preconnect i dns-prefetch do serwerów analityki Google */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link

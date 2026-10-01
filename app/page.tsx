@@ -22,11 +22,12 @@ import {
   MaterialScore,
   TACTICAL_PUZZLES,
 } from "@/lib/chess-coach-engine";
+import { playChessSound } from "@/lib/audio-effects";
 import { stockfishService } from "@/lib/stockfish-service";
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
-// Leniwe ładowanie modali (nie blokują LCP)
+// Leniwe ładowanie modali (nie blokują LCP ani FCP)
 const SettingsModal = dynamic(
   () => import("@/components/settings-modal").then((mod) => mod.SettingsModal),
   { ssr: false },
@@ -36,21 +37,6 @@ const LegalModal = dynamic(
   () => import("@/components/legal-modal").then((mod) => mod.LegalModal),
   { ssr: false },
 );
-
-const playSound = async (
-  type: "move" | "capture" | "check" | "victory" | "illegal",
-) => {
-  try {
-    const audio = await import("@/lib/audio-effects");
-    if (type === "move") audio.playMoveSound();
-    else if (type === "capture") audio.playCaptureSound();
-    else if (type === "check") audio.playCheckSound();
-    else if (type === "victory") audio.playVictorySound();
-    else if (type === "illegal") audio.playIllegalSound();
-  } catch {
-    // Ignoruj błąd odtwarzania w przeglądarkach blokujących autoplay
-  }
-};
 
 type LegalType = "privacy" | "terms" | null;
 
@@ -208,7 +194,7 @@ export default function Page() {
 
     setIsResigned(true);
     setSelected(null);
-    playSound("victory");
+    playChessSound("victory");
 
     const resignText = t.resignedMsg;
     setCoachInsight(resignText);
@@ -223,6 +209,7 @@ export default function Page() {
     announce(statusText);
   };
 
+  // Głęboka analiza Google Gemini AI z ugruntowanym promptem i lokalnym fallbackiem
   const handleDeepAiAnalysis = async () => {
     if (isAnalyzingAi) return;
     setIsAnalyzingAi(true);
@@ -230,25 +217,7 @@ export default function Page() {
     try {
       const fen = gameInstance.fen();
 
-      // 1. Stockfish z limitem 800 ms
-      try {
-        const sfResult = await stockfishService.evaluatePosition(fen, 10);
-        if (sfResult) {
-          const coachMsg = stockfishService.generateEvaluationCoachText(
-            sfResult,
-            gameInstance.turn() === "w",
-            lang,
-          );
-          setCoachInsight(coachMsg.insight);
-          lastValidCoachInsightRef.current = coachMsg.insight;
-          announce(coachMsg.audioText);
-          return;
-        }
-      } catch (sfErr) {
-        console.warn("[ANALIZA] Stockfish fallback:", sfErr);
-      }
-
-      // 2. Gemini API z AbortSignal.timeout(2500)
+      // 1. ZAWSZE NAJPIERW PRAWDZIWE GOOGLE GEMINI AI (/api/analyze)
       try {
         const res = await fetch("/api/analyze", {
           method: "POST",
@@ -271,10 +240,13 @@ export default function Page() {
           }
         }
       } catch (apiErr) {
-        console.warn("[ANALIZA] API fallback:", apiErr);
+        console.warn(
+          "[ANALIZA AI] Gemini API fallback do silnika lokalnego:",
+          apiErr,
+        );
       }
 
-      // 3. Fallback natychmiastowy
+      // 2. Natychmiastowy lokalny fallback pedagogiczny (przy braku sieci / timeoutcie API)
       const localEval = stockfishService.evaluateLocally(fen);
       const coachMsg = stockfishService.generateEvaluationCoachText(
         localEval,
@@ -292,7 +264,8 @@ export default function Page() {
     }
   };
 
-  const executeComputerResponse = async () => {
+  // Błyskawiczna odpowiedź bota (<50 ms) oparta na zoptymalizowanym Minimax z Alpha-Beta
+  const executeComputerResponse = () => {
     if (gameInstance.isGameOver() || isResigned) return;
 
     try {
@@ -301,70 +274,19 @@ export default function Page() {
         | { from: string; to: string; promotion?: string }
         | null = null;
 
-      // 1. Prawdziwy Stockfish dla poziomu Mistrz (Master) i Średniozaawansowany (Intermediate)
-      if (difficulty === "master" || difficulty === "intermediate") {
-        try {
-          const targetDepth = difficulty === "master" ? 14 : 7;
-          const maxWaitTime = difficulty === "master" ? 2200 : 1200;
+      // Szybki lokalny Minimax (<50 ms, MVV-LVA, Mating Drive, Księga Debiutów)
+      const localMove = findBestEngineMove(gameInstance, difficulty);
+      if (localMove) {
+        const isPromo =
+          localMove.piece === "p" &&
+          ((localMove.from[1] === "7" && localMove.to[1] === "8") ||
+            (localMove.from[1] === "2" && localMove.to[1] === "1"));
 
-          const stockfishPromise = stockfishService.evaluatePosition(
-            gameInstance.fen(),
-            targetDepth,
-          );
-          const timeoutPromise = new Promise<null>((resolve) =>
-            setTimeout(() => resolve(null), maxWaitTime),
-          );
-
-          const sfEval = await Promise.race([stockfishPromise, timeoutPromise]);
-
-          if (sfEval) {
-            const moveStr = sfEval.bestMove || "";
-            const fromStr =
-              sfEval.from || (moveStr.length >= 4 ? moveStr.slice(0, 2) : "");
-            const toStr =
-              sfEval.to || (moveStr.length >= 4 ? moveStr.slice(2, 4) : "");
-            const promoStr =
-              sfEval.promotion ||
-              (moveStr.length >= 5 ? moveStr[4].toLowerCase() : undefined);
-
-            if (fromStr && toStr) {
-              const from = fromStr.toLowerCase() as Square;
-              const to = toStr.toLowerCase() as Square;
-              const piece = gameInstance.get(from);
-              const isPromo =
-                piece?.type === "p" &&
-                ((from[1] === "7" && to[1] === "8") ||
-                  (from[1] === "2" && to[1] === "1"));
-
-              chosenMove = {
-                from,
-                to,
-                ...(isPromo ? { promotion: promoStr || "q" } : {}),
-              };
-            } else if (sfEval.bestMove) {
-              chosenMove = sfEval.bestMove;
-            }
-          }
-        } catch (sfErr) {
-          console.warn("[BOT ENGINE] Stockfish fallback do lokalnego:", sfErr);
-        }
-      }
-
-      // 2. Silnik lokalny – z księgą debiutów (~30 ms fallback lub poziom początkujący)
-      if (!chosenMove) {
-        const localMove = findBestEngineMove(gameInstance, difficulty);
-        if (localMove) {
-          const isPromo =
-            localMove.piece === "p" &&
-            ((localMove.from[1] === "7" && localMove.to[1] === "8") ||
-              (localMove.from[1] === "2" && localMove.to[1] === "1"));
-
-          chosenMove = {
-            from: localMove.from,
-            to: localMove.to,
-            ...(isPromo ? { promotion: localMove.promotion || "q" } : {}),
-          };
-        }
+        chosenMove = {
+          from: localMove.from,
+          to: localMove.to,
+          ...(isPromo ? { promotion: localMove.promotion || "q" } : {}),
+        };
       }
 
       if (!chosenMove) {
@@ -406,15 +328,15 @@ export default function Page() {
       setMaterial(calculateMaterialBalance(gameInstance, lang));
 
       if (gameInstance.isCheckmate()) {
-        playSound("victory");
+        playChessSound("victory");
       } else if (gameInstance.isStalemate() || gameInstance.isDraw()) {
-        playSound("move");
+        playChessSound("move");
       } else if (gameInstance.inCheck()) {
-        playSound("check");
+        playChessSound("check");
       } else if (reply.captured) {
-        playSound("capture");
+        playChessSound("capture");
       } else {
-        playSound("move");
+        playChessSound("move");
       }
 
       const replyAnalysis = generateCoachInsight(
@@ -491,15 +413,15 @@ export default function Page() {
       const isGameOverAfterMove = gameInstance.isGameOver();
 
       if (gameInstance.isCheckmate()) {
-        playSound("victory");
+        playChessSound("victory");
       } else if (gameInstance.isStalemate() || gameInstance.isDraw()) {
-        playSound("move");
+        playChessSound("move");
       } else if (gameInstance.inCheck()) {
-        playSound("check");
+        playChessSound("check");
       } else if (result.captured) {
-        playSound("capture");
+        playChessSound("capture");
       } else {
-        playSound("move");
+        playChessSound("move");
       }
 
       const updatedBoard = [...gameInstance.board()];
@@ -519,7 +441,7 @@ export default function Page() {
         lastValidCoachInsightRef.current = puzzleCheck.insight;
 
         if (puzzleCheck.isCorrect) {
-          playSound("victory");
+          playChessSound("victory");
           setActivePuzzle(null);
         }
 
@@ -543,7 +465,7 @@ export default function Page() {
         return;
       }
 
-      // Odpowiedź bota – natychmiast sprawdza coachMutedRef
+      // Odpowiedź bota – Natural Pacing: czeka na koniec mowy trenera
       if (!coachMutedRef.current) {
         announce(playerAnalysis.audioText, () => {
           botTimeoutRef.current = window.setTimeout(() => {
@@ -553,10 +475,10 @@ export default function Page() {
       } else {
         botTimeoutRef.current = window.setTimeout(() => {
           executeComputerResponse();
-        }, 300);
+        }, 150);
       }
     } catch {
-      playSound("illegal");
+      playChessSound("illegal");
       setCoachInsight(t.illegalMoveMsg);
       announce(t.illegalMoveMsg);
 
@@ -570,6 +492,7 @@ export default function Page() {
     }
   };
 
+  // Płynna selekcja bierek (Fluid Reselection) – natychmiastowe przełączenie na inną własną bierkę
   const handleSquareClick = (i: number) => {
     if (isResigned || gameInstance.isGameOver()) return;
 
@@ -616,7 +539,7 @@ export default function Page() {
     setSelected(null);
     setActivePuzzle(null);
     setMaterial(calculateMaterialBalance(gameInstance, lang));
-    playSound("move");
+    playChessSound("move");
 
     const displayText = t.newGameIntroText;
     setCoachInsight(displayText);
@@ -647,7 +570,7 @@ export default function Page() {
       setMoves([...gameInstance.history()]);
       setSelected(null);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
-      playSound("move");
+      playChessSound("move");
 
       const undoText = t.undoTextMsg;
       setCoachInsight(undoText);
@@ -674,7 +597,7 @@ export default function Page() {
       setSelected(null);
       setActivePuzzle(index);
       setMaterial(calculateMaterialBalance(gameInstance, lang));
-      playSound("move");
+      playChessSound("move");
 
       const hint = puzzle.hint[lang];
       setCoachInsight(hint);
@@ -950,7 +873,7 @@ export default function Page() {
         </section>
       </main>
 
-      {/* Stopka */}
+      {/* Dostępna stopka witryny */}
       <SiteFooter
         lang={lang}
         dark={dark}
@@ -962,7 +885,7 @@ export default function Page() {
         onOpenCookies={() => setCookies(true)}
       />
 
-      {/* Ciasteczka RODO */}
+      {/* Ciasteczka i Consent Mode v2 */}
       <CookieConsent
         isOpen={cookies}
         onOpen={() => setCookies(true)}
