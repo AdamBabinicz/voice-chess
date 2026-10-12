@@ -45,8 +45,7 @@ export function VoiceController({
   useEffect(() => {
     isSpeakingRef.current = isSpeaking;
 
-    // Gdy lektor zaczyna mówić, fizycznie odcinamy nasłuch mikrofonu,
-    // aby zapobiec zbieraniu echa z głośników urządzenia.
+    // Gdy lektor zaczyna mówić, odcinamy nasłuch mikrofonu, aby zapobiec zbieraniu echa
     if (isSpeaking) {
       if (recognitionRef.current && isListeningRef.current) {
         try {
@@ -56,7 +55,7 @@ export function VoiceController({
         }
       }
     } else {
-      // Gdy lektor skończył mówić, a użytkownik miał włączony mikrofon, wznawiamy go
+      // Gdy lektor skończył mówić, a użytkownik chciał nasłuchu, wznawiamy go
       if (userWantsListeningRef.current && recognitionRef.current) {
         try {
           recognitionRef.current.start();
@@ -87,10 +86,11 @@ export function VoiceController({
     recognition.lang = lang === "pl" ? "pl-PL" : "en-US";
 
     recognition.onresult = (event: any) => {
-      // Podwójne zabezpieczenie: odrzucenie echa jeśli lektor mówi
-      if (isSpeakingRef.current) {
-        return;
-      }
+      // Zabezpieczenie przed wywołaniami z nieaktywnej instancji
+      if (recognitionRef.current !== recognition) return;
+
+      // Odrzucenie echa jeśli lektor mówi
+      if (isSpeakingRef.current) return;
 
       const current = event.resultIndex;
       const transcript = event.results[current][0].transcript
@@ -104,9 +104,9 @@ export function VoiceController({
     };
 
     recognition.onerror = (event: any) => {
+      if (recognitionRef.current !== recognition) return;
       if (event.error === "no-speech" || event.error === "aborted") return;
 
-      // Zabezpieczenie przed nieskończoną pętlą przy braku uprawnień lub barierze sieciowej
       if (
         event.error === "not-allowed" ||
         event.error === "service-not-allowed" ||
@@ -119,6 +119,8 @@ export function VoiceController({
     };
 
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+
       // Restartuj tylko wtedy, gdy użytkownik chce słuchać I lektor NIE mówi w tym momencie
       if (userWantsListeningRef.current && !isSpeakingRef.current) {
         try {
@@ -142,10 +144,21 @@ export function VoiceController({
     const rec = initRecognition();
     recognitionRef.current = rec;
 
+    // Jeśli użytkownik miał włączony nasłuch przed zmianą języka/trybu, restartujemy
+    if (userWantsListeningRef.current && !isSpeakingRef.current && rec) {
+      try {
+        rec.start();
+        setIsListening(true);
+        isListeningRef.current = true;
+      } catch {
+        // Ignoruj
+      }
+    }
+
     return () => {
-      if (recognitionRef.current) {
+      if (rec) {
         try {
-          recognitionRef.current.abort();
+          rec.abort();
         } catch {
           // Ignoruj
         }
@@ -167,7 +180,6 @@ export function VoiceController({
       }
     } else {
       userWantsListeningRef.current = true;
-      // Jeśli lektor nie mówi w tej chwili, od razu włączamy
       if (!isSpeakingRef.current) {
         isListeningRef.current = true;
         setIsListening(true);
@@ -179,7 +191,6 @@ export function VoiceController({
           setIsListening(false);
         }
       } else {
-        // Użytkownik włączył, ale lektor jeszcze mówi - mikrofon uruchomi się automatycznie po wygaśnięciu mowy lektora
         setIsListening(true);
       }
     }
@@ -232,7 +243,7 @@ export function VoiceController({
         </span>
       )}
 
-      {/* Dostępne pole wpisywania ruchu zgodne z WCAG 2.1 AA */}
+      {/* Pole ręcznego wpisywania ruchu */}
       <form
         onSubmit={handleManualSubmit}
         className="flex flex-1 items-center gap-2"
@@ -258,13 +269,13 @@ export function VoiceController({
 }
 
 function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
-  const clean = text
+  let clean = text
     .toLowerCase()
     .replace(/[.,!?;:]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
-  // 0. Komendy poddania się (Rezygnacja)
+  // 0. Komendy poddania się (Rezygnacja) w PL i EN
   if (
     clean === "poddaje sie" ||
     clean === "poddaję się" ||
@@ -276,35 +287,53 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     clean.includes("rezygnuję") ||
     clean === "resign" ||
     clean.includes("i resign") ||
-    clean.includes("surrender")
+    clean.includes("surrender") ||
+    clean.includes("give up")
   ) {
     return "RESIGN";
   }
 
-  // 1. Roszady
+  // 1. Roszady (Długa / Queenside)
   if (
     clean === "0-0-0" ||
+    clean === "o-o-o" ||
     clean.includes("długa roszada") ||
     clean.includes("dluga roszada") ||
     clean.includes("long castle") ||
-    clean.includes("queenside")
+    clean.includes("castle long") ||
+    clean.includes("queenside") ||
+    clean.includes("queen side")
   ) {
     return "O-O-O";
   }
+
+  // Roszady (Krótka / Kingside)
   if (
     clean === "0-0" ||
+    clean === "o-o" ||
     clean.includes("roszada") ||
     clean.includes("roszadę") ||
     clean.includes("krótka roszada") ||
     clean.includes("krotka roszada") ||
+    clean.includes("short castle") ||
+    clean.includes("castle short") ||
     clean.includes("castle") ||
-    clean.includes("kingside")
+    clean.includes("castling") ||
+    clean.includes("kingside") ||
+    clean.includes("king side")
   ) {
     return "O-O";
   }
 
-  // 2. Normalizacja słownych liczb i liter fonetycznych w języku polskim
-  const plNumbers: Record<string, string> = {
+  // 2. Normalizacja angielskiego "to" / "two" po literze kolumny (np. "e to" -> "e 2", "c two" -> "c 2")
+  clean = clean.replace(/\b([a-h])\s+(?:to|two|too)\b/g, "$1 2");
+
+  // Usuwanie zbędnych słów łączących (np. "knight to f3" -> "knight f3", "pawn to e4" -> "pawn e4")
+  clean = clean.replace(/\b(?:to|into|towards|na|do|pole|square)\b/g, " ");
+
+  // 3. Słownik liczb (PL + EN)
+  const numbersMap: Record<string, string> = {
+    // Polski
     jeden: "1",
     dwa: "2",
     trzy: "3",
@@ -315,9 +344,26 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     szesc: "6",
     siedem: "7",
     osiem: "8",
+    // Angielski
+    one: "1",
+    won: "1",
+    two: "2",
+    too: "2",
+    three: "3",
+    tree: "3",
+    four: "4",
+    for: "4",
+    fore: "4",
+    five: "5",
+    six: "6",
+    seven: "7",
+    eight: "8",
+    ate: "8",
   };
 
-  const plLetters: Record<string, string> = {
+  // 4. Słownik liter fonetycznych (PL + EN)
+  const lettersMap: Record<string, string> = {
+    // Polski
     a: "a",
     be: "b",
     ce: "c",
@@ -326,23 +372,34 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     ef: "f",
     gie: "g",
     ha: "h",
+    // Angielski homofony
+    ay: "a",
+    bee: "b",
+    sea: "c",
+    see: "c",
+    dee: "d",
+    gee: "g",
+    aitch: "h",
   };
 
   const words = clean.split(" ");
   const normalizedWords = words.map((w) => {
-    if (plNumbers[w]) return plNumbers[w];
-    if (plLetters[w]) return plLetters[w];
+    if (numbersMap[w]) return numbersMap[w];
+    if (lettersMap[w]) return lettersMap[w];
     return w;
   });
   const normalizedText = normalizedWords.join(" ");
 
-  // 3. Figury
+  // 5. Rozpoznawanie figur (w tym fonetyczne homofony "night"/"nite" w EN)
   let piecePrefix = "";
   if (
     normalizedText.includes("skoczek") ||
     normalizedText.includes("koń") ||
     normalizedText.includes("kon") ||
-    normalizedText.includes("knight")
+    normalizedText.includes("knight") ||
+    normalizedText.includes("night") ||
+    normalizedText.includes("nite") ||
+    normalizedText.includes("horse")
   ) {
     piecePrefix = "N";
   } else if (
@@ -371,12 +428,45 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     piecePrefix = "K";
   }
 
+  // 6. Bicia
   const isCapture =
     normalizedText.includes("bije") ||
     normalizedText.includes("zbija") ||
+    normalizedText.includes("bicia") ||
     normalizedText.includes("takes") ||
-    normalizedText.includes("bicia");
+    normalizedText.includes("take") ||
+    normalizedText.includes("captures") ||
+    normalizedText.includes("capture");
 
+  // 7. Obsługa ruchu dwupolowego (np. "e2 e4", "e2-e4", "g1 f3")
+  const twoSquareMatch = normalizedText.match(
+    /\b([a-h][1-8])\s*(?:x|bije|takes|-)?\s*([a-h][1-8])\b/,
+  );
+  if (twoSquareMatch) {
+    const fromSquare = twoSquareMatch[1];
+    const toSquare = twoSquareMatch[2];
+    if (fromSquare !== toSquare) {
+      if (piecePrefix) {
+        return isCapture
+          ? `${piecePrefix}x${toSquare}`
+          : `${piecePrefix}${toSquare}`;
+      }
+      return `${fromSquare}${toSquare}`;
+    }
+  }
+
+  // 8. Bezpośredni zapis SAN z mowy lub wpisywania (np. "nf3", "bxc4", "qh5")
+  const directSanMatch = normalizedText.match(
+    /\b([nbrqk])\s*(x)?\s*([a-h][1-8])\b/,
+  );
+  if (directSanMatch) {
+    const piece = directSanMatch[1].toUpperCase();
+    const cap = directSanMatch[2] ? "x" : "";
+    const sq = directSanMatch[3];
+    return `${piece}${cap}${sq}`;
+  }
+
+  // 9. Standardowe dopasowanie pola docelowego
   const squareMatch = normalizedText.match(/\b([a-h])\s?([1-8])\b/);
   if (squareMatch) {
     const targetSquare = `${squareMatch[1]}${squareMatch[2]}`;
@@ -387,8 +477,9 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
         : `${piecePrefix}${targetSquare}`;
     }
 
+    // Bicie pionem (np. "e bije d5", "e takes d5" -> "exd5")
     const fromColMatch = normalizedText.match(
-      /\b([a-h])\s*(bije|zbija|takes|x)?\s*[a-h][1-8]\b/,
+      /\b([a-h])\s*(?:bije|zbija|takes|take|captures|capture|x)?\s*[a-h][1-8]\b/,
     );
     if (fromColMatch && fromColMatch[1] !== squareMatch[1]) {
       return `${fromColMatch[1]}x${targetSquare}`;
