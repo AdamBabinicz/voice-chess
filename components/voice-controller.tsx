@@ -9,7 +9,7 @@ interface VoiceControllerProps {
   lang: "en" | "pl";
   voiceMode: "continuous" | "push";
   isSpeaking?: boolean;
-  onMoveParsed: (move: string) => void;
+  onMoveParsed: (move: any) => void;
   labels: {
     listeningText: string;
     startVoiceText: string;
@@ -38,6 +38,12 @@ export function VoiceController({
   const isSpeakingRef = useRef(false);
   const userWantsListeningRef = useRef(false);
 
+  // Stabilna referencja dla onMoveParsed zapobiega pętli restartowania mikrofonu
+  const onMoveParsedRef = useRef(onMoveParsed);
+  useEffect(() => {
+    onMoveParsedRef.current = onMoveParsed;
+  }, [onMoveParsed]);
+
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
@@ -45,25 +51,21 @@ export function VoiceController({
   useEffect(() => {
     isSpeakingRef.current = isSpeaking;
 
-    // Gdy lektor zaczyna mówić, odcinamy nasłuch mikrofonu, aby zapobiec zbieraniu echa
+    // Gdy lektor mówi, pauzujemy nasłuch, aby nie zbierać echa z głośników
     if (isSpeaking) {
       if (recognitionRef.current && isListeningRef.current) {
         try {
           recognitionRef.current.abort();
-        } catch {
-          // Ignoruj błąd zatrzymania
-        }
+        } catch {}
       }
     } else {
-      // Gdy lektor skończył mówić, a użytkownik chciał nasłuchu, wznawiamy go
+      // Wznawiamy nasłuch po zakończeniu mowy lektora
       if (userWantsListeningRef.current && recognitionRef.current) {
         try {
           recognitionRef.current.start();
           setIsListening(true);
           isListeningRef.current = true;
-        } catch {
-          // Ignoruj błąd startu jeśli już aktywny
-        }
+        } catch {}
       }
     }
   }, [isSpeaking]);
@@ -86,20 +88,24 @@ export function VoiceController({
     recognition.lang = lang === "pl" ? "pl-PL" : "en-US";
 
     recognition.onresult = (event: any) => {
-      // Zabezpieczenie przed wywołaniami z nieaktywnej instancji
       if (recognitionRef.current !== recognition) return;
-
-      // Odrzucenie echa jeśli lektor mówi
       if (isSpeakingRef.current) return;
 
       const current = event.resultIndex;
       const transcript = event.results[current][0].transcript
         .trim()
         .toLowerCase();
+
       const parsed = parseSpokenMove(transcript, lang);
 
+      // Log w konsoli przeglądarki (F12 -> Console) ułatwiający weryfikację mowy
+      console.log(
+        `[Chess Voice (${lang})] Heard: "${transcript}" -> Parsed:`,
+        parsed,
+      );
+
       if (parsed) {
-        onMoveParsed(parsed);
+        onMoveParsedRef.current(parsed);
       }
     };
 
@@ -121,7 +127,6 @@ export function VoiceController({
     recognition.onend = () => {
       if (recognitionRef.current !== recognition) return;
 
-      // Restartuj tylko wtedy, gdy użytkownik chce słuchać I lektor NIE mówi w tym momencie
       if (userWantsListeningRef.current && !isSpeakingRef.current) {
         try {
           recognition.start();
@@ -138,30 +143,25 @@ export function VoiceController({
     };
 
     return recognition;
-  }, [lang, voiceMode, onMoveParsed]);
+  }, [lang, voiceMode]); // Celowo bez onMoveParsed, aby nie restartować mikrofonu przy każdym renderze
 
   useEffect(() => {
     const rec = initRecognition();
     recognitionRef.current = rec;
 
-    // Jeśli użytkownik miał włączony nasłuch przed zmianą języka/trybu, restartujemy
     if (userWantsListeningRef.current && !isSpeakingRef.current && rec) {
       try {
         rec.start();
         setIsListening(true);
         isListeningRef.current = true;
-      } catch {
-        // Ignoruj
-      }
+      } catch {}
     }
 
     return () => {
       if (rec) {
         try {
           rec.abort();
-        } catch {
-          // Ignoruj
-        }
+        } catch {}
       }
     };
   }, [initRecognition]);
@@ -175,9 +175,7 @@ export function VoiceController({
       setIsListening(false);
       try {
         recognitionRef.current?.abort();
-      } catch {
-        // Ignoruj
-      }
+      } catch {}
     } else {
       userWantsListeningRef.current = true;
       if (!isSpeakingRef.current) {
@@ -202,7 +200,7 @@ export function VoiceController({
     const parsed =
       parseSpokenMove(manualInput.trim().toLowerCase(), lang) ||
       manualInput.trim();
-    onMoveParsed(parsed);
+    onMoveParsedRef.current(parsed);
     setManualInput("");
   };
 
@@ -243,7 +241,7 @@ export function VoiceController({
         </span>
       )}
 
-      {/* Pole ręcznego wpisywania ruchu */}
+      {/* Formularz tekstowy */}
       <form
         onSubmit={handleManualSubmit}
         className="flex flex-1 items-center gap-2"
@@ -268,14 +266,15 @@ export function VoiceController({
   );
 }
 
-function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
+function parseSpokenMove(text: string, lang: "en" | "pl"): any {
+  // Usuwanie interpunkcji ORAZ myślników (zamiana myślnika na spację rozbija "e-4" na "e 4")
   let clean = text
     .toLowerCase()
-    .replace(/[.,!?;:]/g, "")
+    .replace(/[-.,!?;:]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  // 0. Komendy poddania się (Rezygnacja) w PL i EN
+  // 0. Komendy poddania się
   if (
     clean === "poddaje sie" ||
     clean === "poddaję się" ||
@@ -293,7 +292,7 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     return "RESIGN";
   }
 
-  // 1. Roszady (Długa / Queenside)
+  // 1. Roszady
   if (
     clean === "0-0-0" ||
     clean === "o-o-o" ||
@@ -307,7 +306,6 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     return "O-O-O";
   }
 
-  // Roszady (Krótka / Kingside)
   if (
     clean === "0-0" ||
     clean === "o-o" ||
@@ -325,15 +323,17 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     return "O-O";
   }
 
-  // 2. Normalizacja angielskiego "to" / "two" po literze kolumny (np. "e to" -> "e 2", "c two" -> "c 2")
+  // 2. Angielskie homofony całych fraz ruchów (np. "before" -> "b4")
+  clean = clean.replace(/\bbefore\b/g, "b 4");
+
+  // 3. Normalizacja "to" / "two" po literze kolumny (np. "e to" -> "e 2", "c two" -> "c 2")
   clean = clean.replace(/\b([a-h])\s+(?:to|two|too)\b/g, "$1 2");
 
   // Usuwanie zbędnych słów łączących (np. "knight to f3" -> "knight f3", "pawn to e4" -> "pawn e4")
   clean = clean.replace(/\b(?:to|into|towards|na|do|pole|square)\b/g, " ");
 
-  // 3. Słownik liczb (PL + EN)
+  // 4. Słowniki liczb i fonetycznych liter
   const numbersMap: Record<string, string> = {
-    // Polski
     jeden: "1",
     dwa: "2",
     trzy: "3",
@@ -344,7 +344,6 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     szesc: "6",
     siedem: "7",
     osiem: "8",
-    // Angielski
     one: "1",
     won: "1",
     two: "2",
@@ -361,9 +360,7 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     ate: "8",
   };
 
-  // 4. Słownik liter fonetycznych (PL + EN)
   const lettersMap: Record<string, string> = {
-    // Polski
     a: "a",
     be: "b",
     ce: "c",
@@ -372,7 +369,6 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     ef: "f",
     gie: "g",
     ha: "h",
-    // Angielski homofony
     ay: "a",
     bee: "b",
     sea: "c",
@@ -390,7 +386,7 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
   });
   const normalizedText = normalizedWords.join(" ");
 
-  // 5. Rozpoznawanie figur (w tym fonetyczne homofony "night"/"nite" w EN)
+  // 5. Rozpoznawanie figur
   let piecePrefix = "";
   if (
     normalizedText.includes("skoczek") ||
@@ -438,9 +434,9 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     normalizedText.includes("captures") ||
     normalizedText.includes("capture");
 
-  // 7. Obsługa ruchu dwupolowego (np. "e2 e4", "e2-e4", "g1 f3")
+  // 7. Dopasowanie ruchu dwupolowego (np. "e2 e4", "e2 to e4") -> Zwraca bezpieczny obiekt { from, to }
   const twoSquareMatch = normalizedText.match(
-    /\b([a-h][1-8])\s*(?:x|bije|takes|-)?\s*([a-h][1-8])\b/,
+    /\b([a-h][1-8])\s*(?:x|bije|takes)?\s*([a-h][1-8])\b/,
   );
   if (twoSquareMatch) {
     const fromSquare = twoSquareMatch[1];
@@ -451,11 +447,11 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
           ? `${piecePrefix}x${toSquare}`
           : `${piecePrefix}${toSquare}`;
       }
-      return `${fromSquare}${toSquare}`;
+      return { from: fromSquare, to: toSquare };
     }
   }
 
-  // 8. Bezpośredni zapis SAN z mowy lub wpisywania (np. "nf3", "bxc4", "qh5")
+  // 8. Bezpośredni zapis SAN (np. "nf3", "qh5", "bxc4")
   const directSanMatch = normalizedText.match(
     /\b([nbrqk])\s*(x)?\s*([a-h][1-8])\b/,
   );
@@ -466,7 +462,7 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
     return `${piece}${cap}${sq}`;
   }
 
-  // 9. Standardowe dopasowanie pola docelowego
+  // 9. Standardowe dopasowanie pojedynczego pola docelowego
   const squareMatch = normalizedText.match(/\b([a-h])\s?([1-8])\b/);
   if (squareMatch) {
     const targetSquare = `${squareMatch[1]}${squareMatch[2]}`;
@@ -477,7 +473,7 @@ function parseSpokenMove(text: string, lang: "en" | "pl"): string | null {
         : `${piecePrefix}${targetSquare}`;
     }
 
-    // Bicie pionem (np. "e bije d5", "e takes d5" -> "exd5")
+    // Bicie pionem (np. "e takes d5" -> "exd5")
     const fromColMatch = normalizedText.match(
       /\b([a-h])\s*(?:bije|zbija|takes|take|captures|capture|x)?\s*[a-h][1-8]\b/,
     );
