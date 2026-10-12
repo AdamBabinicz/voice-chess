@@ -20,7 +20,6 @@ export const metadata: Metadata = {
   applicationName: "ChessTactics Audio Coach",
   manifest: "/site.webmanifest",
   icons: {
-    // /favicon.ico ZAWSZE na pierwszym miejscu dla botów SEO (np. SEO Site Checkup)
     icon: [
       {
         url: "/favicon.ico",
@@ -172,16 +171,22 @@ export default function RootLayout({
   return (
     <html lang="pl" suppressHydrationWarning>
       <head>
-        {/* Bezpośrednie linki do favikony dla botów SEO (SEO Site Checkup) */}
+        {/* Bezpośrednie linki do favikony dla botów SEO */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-        {/* Preconnect i dns-prefetch do serwerów analityki Google */}
+        {/* Preconnect i dns-prefetch do serwerów GTM i Google Analytics */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link
           rel="preconnect"
           href="https://www.googletagmanager.com"
+          crossOrigin="anonymous"
+        />
+        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+        <link
+          rel="preconnect"
+          href="https://www.google-analytics.com"
           crossOrigin="anonymous"
         />
       </head>
@@ -189,7 +194,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className="antialiased min-h-screen bg-background text-foreground"
       >
-        {/* Google Tag Manager (noscript fallback) bez inline-styles, z tytułem dla WCAG */}
+        {/* Google Tag Manager (noscript fallback) */}
         <noscript>
           <iframe
             src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
@@ -200,7 +205,7 @@ export default function RootLayout({
           />
         </noscript>
 
-        {/* 1. Google Consent Mode v2 – inicjalizacja dataLayer i domyślna ochrona prywatności */}
+        {/* 1. Google Consent Mode v2 – inicjalizacja dataLayer bez blokowania */}
         <Script
           id="gtm-consent-init"
           strategy="afterInteractive"
@@ -221,10 +226,10 @@ export default function RootLayout({
           }}
         />
 
-        {/* 2. Bezpośredni skrypt GTM – widoczny dla robotów SEO w kodzie HTML */}
+        {/* 2. Skrypt GTM załadowany jako lazyOnload – NIE blokuje już LCP ani wątku głównego */}
         <Script
           id="gtm-script-loader"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           src={`https://www.googletagmanager.com/gtm.js?id=${GTM_ID}`}
         />
 

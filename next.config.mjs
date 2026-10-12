@@ -1,8 +1,8 @@
 // next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false, // Wyłącza podwójne renderowanie komponentów w trybie dev
-  turbopack: {}, // Wycisza konflikt konfiguracji z Turbopackiem w Next.js 16
+  reactStrictMode: false,
+  turbopack: {},
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -16,7 +16,6 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === "production",
   },
   experimental: {
-    // Tylko biblioteki ikonowe – usunięto chess.js, który w devie powodował błędy rozbijania modułów
     optimizePackageImports: ["lucide-react"],
   },
   async headers() {
@@ -27,6 +26,16 @@ const nextConfig = {
           {
             key: "Cache-Control",
             value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+      {
+        // Roczny, niezmienny cache dla plików audio i statycznych assetów
+        source: "/(sounds|audio|pliki)/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },

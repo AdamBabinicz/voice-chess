@@ -9,10 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ChessBoardView } from "@/components/chess-board-view";
 import { CoachPanel } from "@/components/coach-panel";
 import { SiteHeader } from "@/components/site-header";
-import { SiteFooter } from "@/components/site-footer";
 import { VoiceController } from "@/components/voice-controller";
-import { TacticsSection } from "@/components/tactics-section";
-import { CookieConsent } from "@/components/cookie-consent";
 import {
   calculateMaterialBalance,
   evaluateTacticalPuzzle,
@@ -23,11 +20,41 @@ import {
   TACTICAL_PUZZLES,
 } from "@/lib/chess-coach-engine";
 import { playChessSound } from "@/lib/audio-effects";
-import { stockfishService } from "@/lib/stockfish-service";
 import { Lang, translations } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 
-// Leniwe ładowanie modali (nie blokują LCP ani FCP)
+// Leniwe ładowanie komponentów poniżej linii zgięcia i modali
+const TacticsSection = dynamic(
+  () =>
+    import("@/components/tactics-section").then((mod) => mod.TacticsSection),
+  {
+    loading: () => (
+      <div className="mx-auto max-w-[1360px] px-5 py-16 animate-pulse">
+        <div className="h-8 w-64 rounded-lg bg-stone-200 dark:bg-stone-800 mb-8" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-44 rounded-2xl bg-stone-200 dark:bg-stone-800"
+            />
+          ))}
+        </div>
+      </div>
+    ),
+    ssr: false,
+  },
+);
+
+const SiteFooter = dynamic(
+  () => import("@/components/site-footer").then((mod) => mod.SiteFooter),
+  { ssr: false },
+);
+
+const CookieConsent = dynamic(
+  () => import("@/components/cookie-consent").then((mod) => mod.CookieConsent),
+  { ssr: false },
+);
+
 const SettingsModal = dynamic(
   () => import("@/components/settings-modal").then((mod) => mod.SettingsModal),
   { ssr: false },
@@ -58,7 +85,6 @@ export default function Page() {
   );
 
   const [coachMuted, setCoachMutedState] = useState(false);
-  // Natychmiastowa referencja wyciszenia – odporna na opóźnienia i asynchroniczność
   const coachMutedRef = useRef(false);
 
   const setCoachMuted = useCallback((muted: boolean) => {
@@ -107,7 +133,6 @@ export default function Page() {
 
   const announce = useCallback(
     (message: string, onComplete?: () => void) => {
-      // Zawsze sprawdzamy aktualną referencję coachMutedRef
       if (coachMutedRef.current) {
         if (onComplete) onComplete();
         return;
@@ -159,7 +184,6 @@ export default function Page() {
           utterance.onend = handleFinish;
           utterance.onerror = handleFinish;
 
-          // Watchdog dla Windows Chromium w razie braku zdarzenia onend
           const rateMultiplier = Number(speed) || 1;
           const estimatedDuration =
             Math.max(2500, ((message.length / 8) * 1000) / rateMultiplier) +
@@ -209,7 +233,7 @@ export default function Page() {
     announce(statusText);
   };
 
-  // Głęboka analiza Google Gemini AI z ugruntowanym promptem i lokalnym fallbackiem
+  // Głęboka analiza Google Gemini AI z ugruntowanym promptem i dynamicznym fallbackiem Stockfisha
   const handleDeepAiAnalysis = async () => {
     if (isAnalyzingAi) return;
     setIsAnalyzingAi(true);
@@ -246,7 +270,8 @@ export default function Page() {
         );
       }
 
-      // 2. Natychmiastowy lokalny fallback pedagogiczny (przy braku sieci / timeoutcie API)
+      // 2. Leniwe pobranie Stockfish Service tylko w razie potrzeby (nie obciąża startu strony)
+      const { stockfishService } = await import("@/lib/stockfish-service");
       const localEval = stockfishService.evaluateLocally(fen);
       const coachMsg = stockfishService.generateEvaluationCoachText(
         localEval,
@@ -264,7 +289,7 @@ export default function Page() {
     }
   };
 
-  // Błyskawiczna odpowiedź bota (<50 ms) oparta na zoptymalizowanym Minimax z Alpha-Beta
+  // Odpowiedź bota (<50 ms)
   const executeComputerResponse = () => {
     if (gameInstance.isGameOver() || isResigned) return;
 
@@ -272,7 +297,6 @@ export default function Page() {
       let chosenMove: { from: Square; to: Square; promotion?: string } | null =
         null;
 
-      // Szybki lokalny Minimax (<50 ms, MVV-LVA, Mating Drive, Księga Debiutów)
       const localMove = findBestEngineMove(gameInstance, difficulty);
       if (localMove) {
         const isPromo =
@@ -326,11 +350,9 @@ export default function Page() {
         false,
       );
 
-      // Trener wyświetla komentarz do ruchu bota
       setCoachInsight(replyAnalysis.insight);
       lastValidCoachInsightRef.current = replyAnalysis.insight;
 
-      // Mówi tylko wtedy, gdy dźwięk nie jest wyciszony
       if (!coachMutedRef.current) {
         announce(replyAnalysis.audioText);
       }
@@ -436,7 +458,6 @@ export default function Page() {
         true,
       );
 
-      // Trener wyświetla wskazówkę po ruchu gracza
       setCoachInsight(playerAnalysis.insight);
       lastValidCoachInsightRef.current = playerAnalysis.insight;
 
@@ -445,7 +466,6 @@ export default function Page() {
         return;
       }
 
-      // Odpowiedź bota – Natural Pacing: czeka na koniec mowy trenera
       if (!coachMutedRef.current) {
         announce(playerAnalysis.audioText, () => {
           botTimeoutRef.current = window.setTimeout(() => {
@@ -472,7 +492,6 @@ export default function Page() {
     }
   };
 
-  // Płynna selekcja bierek (Fluid Reselection) – natychmiastowe przełączenie na inną własną bierkę
   const handleSquareClick = (i: number) => {
     if (isResigned || gameInstance.isGameOver()) return;
 
@@ -818,7 +837,7 @@ export default function Page() {
           />
         </div>
 
-        {/* Sekcja łamigłówek taktycznych */}
+        {/* Leniwie ładowana sekcja łamigłówek taktycznych */}
         <TacticsSection
           lang={lang}
           activePuzzle={activePuzzle}
@@ -853,7 +872,7 @@ export default function Page() {
         </section>
       </main>
 
-      {/* Dostępna stopka witryny */}
+      {/* Leniwie ładowana stopka witryny */}
       <SiteFooter
         lang={lang}
         dark={dark}
@@ -865,7 +884,7 @@ export default function Page() {
         onOpenCookies={() => setCookies(true)}
       />
 
-      {/* Ciasteczka i Consent Mode v2 */}
+      {/* Leniwie ładowany baner ciasteczek */}
       <CookieConsent
         isOpen={cookies}
         onOpen={() => setCookies(true)}
