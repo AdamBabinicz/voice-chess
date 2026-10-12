@@ -122,7 +122,6 @@ export default function Page() {
 
   const t = translations[lang];
 
-  // Tryb ciemny
   useEffect(() => {
     if (dark) {
       document.documentElement.classList.add("dark");
@@ -233,7 +232,6 @@ export default function Page() {
     announce(statusText);
   };
 
-  // Głęboka analiza Google Gemini AI z ugruntowanym promptem i dynamicznym fallbackiem Stockfisha
   const handleDeepAiAnalysis = async () => {
     if (isAnalyzingAi) return;
     setIsAnalyzingAi(true);
@@ -241,7 +239,7 @@ export default function Page() {
     try {
       const fen = gameInstance.fen();
 
-      // 1. ZAWSZE NAJPIERW PRAWDZIWE GOOGLE GEMINI AI (/api/analyze)
+      // 1. Najpierw prawdziwe Google Gemini AI
       try {
         const res = await fetch("/api/analyze", {
           method: "POST",
@@ -270,7 +268,7 @@ export default function Page() {
         );
       }
 
-      // 2. Leniwe pobranie Stockfish Service tylko w razie potrzeby (nie obciąża startu strony)
+      // 2. Leniwy import Stockfish Service tylko na żądanie (nie obciąża startu strony)
       const { stockfishService } = await import("@/lib/stockfish-service");
       const localEval = stockfishService.evaluateLocally(fen);
       const coachMsg = stockfishService.generateEvaluationCoachText(
@@ -289,7 +287,6 @@ export default function Page() {
     }
   };
 
-  // Odpowiedź bota (<50 ms)
   const executeComputerResponse = () => {
     if (gameInstance.isGameOver() || isResigned) return;
 

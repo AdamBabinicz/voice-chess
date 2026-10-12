@@ -1,8 +1,8 @@
 // next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false,
-  turbopack: {},
+  reactStrictMode: false, // Wyłącza podwójne renderowanie komponentów w trybie dev
+  turbopack: {}, // Wycisza konflikt konfiguracji z Turbopackiem w Next.js 16
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -30,7 +30,7 @@ const nextConfig = {
         ],
       },
       {
-        // Roczny, niezmienny cache dla plików audio i statycznych assetów
+        // Roczny, niezmienny cache dla plików audio i assetów multimedialnych
         source: "/(sounds|audio|pliki)/:path*",
         headers: [
           {

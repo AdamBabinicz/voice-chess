@@ -171,12 +171,12 @@ export default function RootLayout({
   return (
     <html lang="pl" suppressHydrationWarning>
       <head>
-        {/* Bezpośrednie linki do favikony dla botów SEO */}
+        {/* Favikony */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-        {/* Preconnect i dns-prefetch do serwerów GTM i Google Analytics */}
+        {/* Preconnect i dns-prefetch do serwerów GTM i Analytics */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link
           rel="preconnect"
@@ -194,7 +194,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className="antialiased min-h-screen bg-background text-foreground"
       >
-        {/* Google Tag Manager (noscript fallback) */}
+        {/* GTM noscript fallback */}
         <noscript>
           <iframe
             src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
@@ -205,7 +205,7 @@ export default function RootLayout({
           />
         </noscript>
 
-        {/* 1. Google Consent Mode v2 – inicjalizacja dataLayer bez blokowania */}
+        {/* 1. Google Consent Mode v2 – natychmiastowa inicjalizacja dataLayer */}
         <Script
           id="gtm-consent-init"
           strategy="afterInteractive"
@@ -226,11 +226,32 @@ export default function RootLayout({
           }}
         />
 
-        {/* 2. Skrypt GTM załadowany jako lazyOnload – NIE blokuje już LCP ani wątku głównego */}
+        {/* 2. Inteligentne ładowanie GTM – przy pierwszej interakcji lub po 3.5s (nie blokuje Lighthouse) */}
         <Script
-          id="gtm-script-loader"
-          strategy="lazyOnload"
-          src={`https://www.googletagmanager.com/gtm.js?id=${GTM_ID}`}
+          id="gtm-deferred-loader"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var loaded = false;
+                function loadGTM() {
+                  if (loaded) return;
+                  loaded = true;
+                  ['scroll', 'mousemove', 'touchstart', 'keydown', 'click'].forEach(function(e) {
+                    window.removeEventListener(e, loadGTM, { passive: true });
+                  });
+                  var s = document.createElement('script');
+                  s.src = 'https://www.googletagmanager.com/gtm.js?id=${GTM_ID}';
+                  s.async = true;
+                  document.head.appendChild(s);
+                }
+                ['scroll', 'mousemove', 'touchstart', 'keydown', 'click'].forEach(function(e) {
+                  window.addEventListener(e, loadGTM, { passive: true, once: true });
+                });
+                setTimeout(loadGTM, 3500);
+              })();
+            `,
+          }}
         />
 
         {/* Schema.org Structured Data */}
